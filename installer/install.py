@@ -106,7 +106,11 @@ def install(args):
         # Extract all content before touching running services.
         with tempfile.TemporaryDirectory() as staging:
             prepare(pkg, Path(staging))
-            shutil.copytree(Path(staging) / "backend", stage_b / "new")
+            if backend.exists():
+                shutil.copytree(backend, stage_b / "new", symlinks=True)
+                shutil.copy2(Path(staging) / "backend" / "wb.srv.jar", stage_b / "new" / "wb.srv.jar")
+            else:
+                shutil.copytree(Path(staging) / "backend", stage_b / "new")
             shutil.copytree(Path(staging) / "ui", stage_u / "new")
         marker = time.strftime("%Y%m%d-%H%M%S")
         backup_b = backend.with_name(backend.name + ".backup-" + marker)
