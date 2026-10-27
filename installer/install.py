@@ -69,8 +69,10 @@ def install(args):
         raise ValueError("Missing existing lib directory")
     dropin_dir = Path("/etc/systemd/system/wb-srv.service.d")
     dropin = dropin_dir / "90-wb-update.conf"
-    if dropin.exists() or dropin.is_symlink():
-        raise FileExistsError("Refusing to overwrite existing override: " + str(dropin))
+    existing_override = dropin.read_text() if dropin.is_file() and not dropin.is_symlink() else None
+    expected_override = "[Service]\nExecStart=\nExecStart=/usr/bin/java -jar /opt/wb.srv/wb.srv.jar\n"
+    if dropin.is_symlink() or (existing_override is not None and existing_override != expected_override):
+        raise FileExistsError("Unknown systemd override: " + str(dropin))
     manifest = verify(args.package)
     if args.dry_run:
         print(json.dumps({"verified": True, "version": manifest["version"], "root": str(root),
@@ -110,10 +112,11 @@ def install(args):
         try:
             dropin_dir.mkdir(parents=True, exist_ok=True)
             # systemd requires clearing the original ExecStart before replacing it.
-            override_text = "[Service]\nExecStart=\nExecStart=/usr/bin/java -jar /opt/wb.srv/wb.srv.jar\n"
+            override_text = expected_override
             run("systemctl", "stop", "wb-srv.service")
-            dropin.write_text(override_text)
-            override_installed = True
+            if existing_override is None:
+                dropin.write_text(override_text)
+                override_installed = True
             run("systemctl", "daemon-reload")
             # wb-ui.service requires wb-srv and may be stopped by systemd; restart if needed.
             for live, staged in ((jar, stage / "wb.srv.jar"), (ui, stage / "static")):
