@@ -86,6 +86,9 @@ def install(args):
     with tempfile.TemporaryDirectory(prefix=".wb-update-", dir=root) as tmp:
         stage = Path(tmp)
         manifest = prepare(args.package, stage)
+        with zipfile.ZipFile(stage / "wb.srv.jar") as new_jar:
+            if "BOOT-INF/classes/net/an2an/wb/server/Application.class" not in new_jar.namelist():
+                raise ValueError("Expected executable Spring Boot JAR with Application.class")
         # Preserve permissions and ownership of existing deployment files.
         shutil.copymode(jar, stage / "wb.srv.jar")
         shutil.copystat(jar, stage / "wb.srv.jar")
@@ -108,10 +111,10 @@ def install(args):
             dropin_dir.mkdir(parents=True, exist_ok=True)
             # systemd requires clearing the original ExecStart before replacing it.
             override_text = "[Service]\nExecStart=\nExecStart=/usr/bin/java -jar /opt/wb.srv/wb.srv.jar\n"
+            run("systemctl", "stop", "wb-srv.service")
             dropin.write_text(override_text)
             override_installed = True
             run("systemctl", "daemon-reload")
-            run("systemctl", "stop", "wb-srv.service")
             # wb-ui.service requires wb-srv and may be stopped by systemd; restart if needed.
             for live, staged in ((jar, stage / "wb.srv.jar"), (ui, stage / "static")):
                 previous = backup / live.name
