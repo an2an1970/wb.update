@@ -3,7 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 import zipfile
-from installer.install import safe_extract, swap
+from installer.install import safe_extract, prepare
 
 class InstallerTests(unittest.TestCase):
     def test_safe_extract(self):
@@ -24,17 +24,13 @@ class InstallerTests(unittest.TestCase):
                 safe_extract(z, Path(td))
             self.assertEqual((Path(td) / "index.html").read_text(), "ok")
 
-    def test_swap_backup(self):
+    def test_prepare_rejects_invalid_package(self):
         with tempfile.TemporaryDirectory() as td:
             p = Path(td)
-            old, new, backup = p / "app", p / "new", p / "backup"
-            old.mkdir()
-            (old / "config").write_text("preserve")
-            new.mkdir()
-            (new / "jar").write_text("new")
-            self.assertTrue(swap(new, old, backup))
-            self.assertTrue((old / "jar").exists())
-            self.assertTrue((backup / "config").exists())
+            invalid = p / "bad.wbpkg"
+            invalid.write_text("not a ZIP")
+            with self.assertRaises(zipfile.BadZipFile):
+                prepare(invalid, p / "stage")
 
 if __name__ == "__main__":
     unittest.main()
