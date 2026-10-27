@@ -13,6 +13,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 -m unittest discover -s tests -v
+      - name: Build package from releases
+        run: bash scripts/build-from-releases.sh
+        env:
+          WB_RELEASE_TOKEN: ${{ secrets.WB_RELEASE_TOKEN }}
+          VERSION: ${{ inputs.version }}
       - uses: actions/upload-artifact@v4
         with:
           name: wb-package
