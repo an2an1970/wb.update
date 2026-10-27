@@ -107,7 +107,7 @@ def install(args):
         try:
             dropin_dir.mkdir(parents=True, exist_ok=True)
             # systemd requires clearing the original ExecStart before replacing it.
-            override_text = "[Service]\\nExecStart=\\nExecStart=/usr/bin/java -jar /opt/wb.srv/wb.srv.jar\\n"
+            override_text = "[Service]\nExecStart=\nExecStart=/usr/bin/java -jar /opt/wb.srv/wb.srv.jar\n"
             dropin.write_text(override_text)
             override_installed = True
             run("systemctl", "daemon-reload")
