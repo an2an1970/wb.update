@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install WB backend JAR and static UI on wb22. Firmware is not flashed."""
+"""Install WB backend, UI, and flash ESP32-S3 on WB v4 hardware."""
 import argparse
 import io
 import json
@@ -58,6 +58,37 @@ def prepare(pkg, dest):
         raise ValueError("UI ZIP must contain index.html at root")
     return manifest
 
+def flash_firmware(package, stage, root):
+    """Always flash all ESP32-S3 images. Requires verified local WB hardware scripts."""
+    boot = root / "boot.sh"
+    reset = root / "reset.sh"
+    boot_app = root / "boot_app0.bin"
+    for file in (boot, reset, boot_app):
+        if not file.is_file() or file.is_symlink():
+            raise FileNotFoundError(f"Required firmware support file: {file}")
+    if not shutil.which("esptool") or not shutil.which("pinctrl"):
+        raise RuntimeError("esptool and pinctrl are required to flash ESP32-S3")
+    firmware_dir = stage / "firmware"
+    firmware_dir.mkdir()
+    with zipfile.ZipFile(package) as pkg:
+        for src, name in (("firmware/v4/app.bin", "app.bin"),
+                          ("firmware/v4/bootloader.bin", "bootloader.bin"),
+                          ("firmware/v4/partitions.bin", "partitions.bin")):
+            (firmware_dir / name).write_bytes(pkg.read(src))
+    run("bash", str(boot))
+    try:
+        run("esptool", "--chip", "esp32s3", "--port", "/dev/serial0",
+            "--baud", "921600", "--before", "default-reset",
+            "--after", "hard-reset", "write-flash", "-z",
+            "--flash-mode", "dio", "--flash-freq", "80m",
+            "--flash-size", "8MB",
+            "0x0", str(firmware_dir / "bootloader.bin"),
+            "0x8000", str(firmware_dir / "partitions.bin"),
+            "0xe000", str(boot_app),
+            "0x10000", str(firmware_dir / "app.bin"))
+    finally:
+        run("bash", str(reset))
+
 def install(args):
     root = Path(args.root)
     if root.is_symlink() or not root.is_dir():
@@ -76,7 +107,7 @@ def install(args):
     manifest = verify(args.package)
     if args.dry_run:
         print(json.dumps({"verified": True, "version": manifest["version"], "root": str(root),
-                          "jar": str(jar), "ui": str(ui), "firmware": "unchanged"}, indent=2))
+                          "jar": str(jar), "ui": str(ui), "firmware": "will flash on installation"}, indent=2))
         return
     if os.geteuid() != 0:
         raise PermissionError("Installation requires root")
@@ -114,6 +145,7 @@ def install(args):
             # systemd requires clearing the original ExecStart before replacing it.
             override_text = expected_override
             run("systemctl", "stop", "wb-srv.service")
+            flash_firmware(args.package, stage, root)
             if existing_override is None:
                 dropin.write_text(override_text)
                 override_installed = True
@@ -143,7 +175,7 @@ def install(args):
             run("systemctl", "start", "wb-ui.service")
             run("systemctl", "is-active", "--quiet", "wb-ui.service")
             print(json.dumps({"installed": manifest["version"], "backup": str(backup),
-                              "firmware": "unchanged"}, indent=2))
+                              "firmware": "flashed"}, indent=2))
         except BaseException:
             try: run("systemctl", "stop", "wb-srv.service")
             except Exception: pass
