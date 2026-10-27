@@ -11,6 +11,7 @@ import sys
 import tempfile
 import time
 import zipfile
+import urllib.request
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "packager"))
 from build import verify
@@ -65,7 +66,11 @@ def install(args):
     if jar.is_symlink() or ui.is_symlink() or not jar.is_file() or not ui.is_dir():
         raise ValueError("Expected regular JAR and static directory")
     if not (root / "lib").is_dir():
-        raise ValueError("Missing lib directory required by systemd classpath")
+        raise ValueError("Missing existing lib directory")
+    dropin_dir = Path("/etc/systemd/system/wb-srv.service.d")
+    dropin = dropin_dir / "90-wb-update.conf"
+    if dropin.exists() or dropin.is_symlink():
+        raise FileExistsError("Refusing to overwrite existing override: " + str(dropin))
     manifest = verify(args.package)
     if args.dry_run:
         print(json.dumps({"verified": True, "version": manifest["version"], "root": str(root),
@@ -75,6 +80,8 @@ def install(args):
         raise PermissionError("Installation requires root")
     if not args.allow_unsigned:
         raise ValueError("Unsigned package: --allow-unsigned required for test deployments")
+    if root != ROOT:
+        raise ValueError("This installer only supports /opt/wb.srv; systemd override uses that path")
     # All temporary and backup files reside on the same filesystem as live files.
     with tempfile.TemporaryDirectory(prefix=".wb-update-", dir=root) as tmp:
         stage = Path(tmp)
@@ -96,7 +103,14 @@ def install(args):
             raise FileExistsError(backup)
         backup.mkdir(parents=True)
         swapped = []
+        override_installed = False
         try:
+            dropin_dir.mkdir(parents=True, exist_ok=True)
+            # systemd requires clearing the original ExecStart before replacing it.
+            override_text = "[Service]\\nExecStart=\\nExecStart=/usr/bin/java -jar /opt/wb.srv/wb.srv.jar\\n"
+            dropin.write_text(override_text)
+            override_installed = True
+            run("systemctl", "daemon-reload")
             run("systemctl", "stop", "wb-srv.service")
             # wb-ui.service requires wb-srv and may be stopped by systemd; restart if needed.
             for live, staged in ((jar, stage / "wb.srv.jar"), (ui, stage / "static")):
@@ -105,10 +119,23 @@ def install(args):
                 swapped.append((live, previous))
                 staged.rename(live)
             run("systemctl", "start", "wb-srv.service")
+            # Wait for Spring Boot readiness, not merely process startup.
+            ready = False
+            for _ in range(60):
+                try:
+                    with urllib.request.urlopen("http://127.0.0.1:7777/favicon.ico", timeout=2) as response:
+                        if response.status == 200:
+                            ready = True
+                            break
+                except Exception:
+                    pass
+                time.sleep(1)
+            if not ready:
+                raise RuntimeError("Backend did not become HTTP-ready within 60 seconds")
             run("systemctl", "is-active", "--quiet", "wb-srv.service")
-            # Health probe is intentionally stronger than systemd active state.
-            run("curl", "--fail", "--silent", "--show-error", "--max-time", "10",
-                "http://127.0.0.1:7777/favicon.ico", "-o", "/dev/null")
+            # The kiosk service may have been stopped through Requires=.
+            run("systemctl", "start", "wb-ui.service")
+            run("systemctl", "is-active", "--quiet", "wb-ui.service")
             print(json.dumps({"installed": manifest["version"], "backup": str(backup),
                               "firmware": "unchanged"}, indent=2))
         except BaseException:
@@ -119,7 +146,13 @@ def install(args):
                     if live.is_dir(): shutil.rmtree(live)
                     else: live.unlink()
                 previous.rename(live)
+            if override_installed:
+                dropin.unlink(missing_ok=True)
+                try: run("systemctl", "daemon-reload")
+                except Exception: pass
             try: run("systemctl", "start", "wb-srv.service")
+            except Exception: pass
+            try: run("systemctl", "start", "wb-ui.service")
             except Exception: pass
             raise
 
