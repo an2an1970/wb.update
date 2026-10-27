@@ -1,6 +1,10 @@
 name: Build WB Package
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        required: true
+        default: "0.1.0"
 permissions:
   contents: read
 jobs:
@@ -9,3 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 -m unittest discover -s tests -v
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wb-package
+          path: wb-*.wbpkg
