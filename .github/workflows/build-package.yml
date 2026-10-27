@@ -6,7 +6,7 @@ on:
         required: true
         default: "0.1.0"
 permissions:
-  contents: read
+  contents: write
 jobs:
   package:
     runs-on: ubuntu-24.04
@@ -22,3 +22,15 @@ jobs:
         with:
           name: wb-package
           path: wb-*.wbpkg
+      - name: Publish downloadable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          TAG="v${VERSION}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "wb-${VERSION}.wbpkg" --clobber
+          else
+            gh release create "$TAG" "wb-${VERSION}.wbpkg" --title "WB ${VERSION}" --notes "WB deployment package. Unsigned test release; firmware not flashed by installer."
+          fi
