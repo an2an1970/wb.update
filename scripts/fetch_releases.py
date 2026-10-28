@@ -77,12 +77,12 @@ def main():
     out = Path(a.output)
     out.mkdir(parents=True, exist_ok=True)
     specs = [
-        ("wb.srv", a.backend_tag, a.backend_sha, {"backend.jar": r"wb\\.srv-.*\\.jar"}),
-        ("wb.ui", a.ui_tag, a.ui_sha, {"ui.zip": r"ui-.*\\.zip"}),
+        ("wb.srv", a.backend_tag, a.backend_sha, {"backend.jar": r"wb\.srv-.*\.jar"}),
+        ("wb.ui", a.ui_tag, a.ui_sha, {"ui.zip": r"ui-.*\.zip"}),
         ("wb.arduino", a.firmware_tag, a.firmware_sha,
-         {"app.bin": r"wb-v4-esp32s3-(?!bootloader|partitions).*\\.bin",
-          "bootloader.bin": r"wb-v4-esp32s3\\.bootloader-.*\\.bin",
-          "partitions.bin": r"wb-v4-esp32s3\\.partitions-.*\\.bin"})
+         {"app.bin": r"wb-v4-esp32s3-(?!bootloader|partitions).*\.bin",
+          "bootloader.bin": r"wb-v4-esp32s3\.bootloader-.*\.bin",
+          "partitions.bin": r"wb-v4-esp32s3\.partitions-.*\.bin"})
     ]
     selected = {}
     for repo, tag, sha, patterns in specs:
@@ -93,7 +93,7 @@ def main():
         print(f"Selected {repo}: {tag} ({sha})")
         download(repo, tag, sha, patterns, out, token)
         selected[repo] = {"tag": tag, "sha": sha}
-    (out / "selected-releases.json").write_text(json.dumps(selected, indent=2) + "\\n")
+    (out / "selected-releases.json").write_text(json.dumps(selected, indent=2) + "\n")
 
 if __name__ == "__main__":
     main()
