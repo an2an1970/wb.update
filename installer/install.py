@@ -89,6 +89,15 @@ def flash_firmware(package, stage, root):
     finally:
         run("bash", str(reset))
 
+def configure_qr_uart(dry_run=False):
+    script = Path(__file__).resolve().with_name("setup-qr-uart.sh")
+    if not script.is_file() or script.is_symlink():
+        raise FileNotFoundError(f"Missing QR UART setup script: {script}")
+    cmd = ["bash", str(script)]
+    if dry_run:
+        cmd.append("--dry-run")
+    run(*cmd)
+
 def install(args):
     root = Path(args.root)
     if root.is_symlink() or not root.is_dir():
@@ -106,6 +115,7 @@ def install(args):
         raise FileExistsError("Unknown systemd override: " + str(dropin))
     manifest = verify(args.package)
     if args.dry_run:
+        configure_qr_uart(dry_run=True)
         print(json.dumps({"verified": True, "version": manifest["version"], "root": str(root),
                           "jar": str(jar), "ui": str(ui), "firmware": "will flash on installation"}, indent=2))
         return
@@ -115,6 +125,7 @@ def install(args):
         raise ValueError("Unsigned package: --allow-unsigned required for test deployments")
     if root != ROOT:
         raise ValueError("This installer only supports /opt/wb.srv; systemd override uses that path")
+    configure_qr_uart(dry_run=True)
     # All temporary and backup files reside on the same filesystem as live files.
     with tempfile.TemporaryDirectory(prefix=".wb-update-", dir=root) as tmp:
         stage = Path(tmp)
@@ -146,6 +157,7 @@ def install(args):
             override_text = expected_override
             run("systemctl", "stop", "wb-srv.service")
             flash_firmware(args.package, stage, root)
+            configure_qr_uart()
             if existing_override is None:
                 dropin.write_text(override_text)
                 override_installed = True
@@ -175,7 +187,7 @@ def install(args):
             run("systemctl", "start", "wb-ui.service")
             run("systemctl", "is-active", "--quiet", "wb-ui.service")
             print(json.dumps({"installed": manifest["version"], "backup": str(backup),
-                              "firmware": "flashed"}, indent=2))
+                              "firmware": "flashed", "qr_uart": "configured; reboot required if changed"}, indent=2))
         except BaseException:
             try: run("systemctl", "stop", "wb-srv.service")
             except Exception: pass
