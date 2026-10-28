@@ -187,7 +187,9 @@ def install(args):
             run("systemctl", "start", "wb-ui.service")
             run("systemctl", "is-active", "--quiet", "wb-ui.service")
             print(json.dumps({"installed": manifest["version"], "backup": str(backup),
-                              "firmware": "flashed", "qr_uart": "configured; reboot required if changed"}, indent=2))
+                              "firmware": "flashed", "qr_uart": "configured", "reboot": "scheduled in 1 minute"}, indent=2))
+            # Delay reboot so SSH/bootstrap can receive the success response.
+            run("shutdown", "-r", "+1", "WB update completed")
         except BaseException:
             try: run("systemctl", "stop", "wb-srv.service")
             except Exception: pass
