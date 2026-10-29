@@ -109,10 +109,16 @@ def install(args):
         raise ValueError("Missing existing lib directory")
     dropin_dir = Path("/etc/systemd/system/wb-srv.service.d")
     dropin = dropin_dir / "90-wb-update.conf"
+    debug_dropin = dropin_dir / "99-wb-debug.conf"
     existing_override = dropin.read_text() if dropin.is_file() and not dropin.is_symlink() else None
     expected_override = "[Service]\nExecStart=\nExecStart=/usr/bin/java -jar /opt/wb.srv/wb.srv.jar\n"
     if dropin.is_symlink() or (existing_override is not None and existing_override != expected_override):
         raise FileExistsError("Unknown systemd override: " + str(dropin))
+    expected_debug = ("[Service]\\nExecStart=\\n"
+                      "ExecStart=/usr/bin/java -cp /opt/wb.srv/wb.srv.jar:/opt/wb.srv/lib/* net.an2an.wb.server.Application\\n")
+    if debug_dropin.is_symlink() or (debug_dropin.exists() and
+       (not debug_dropin.is_file() or debug_dropin.read_text() != expected_debug)):
+        raise FileExistsError("Unknown debug systemd override: " + str(debug_dropin))
     manifest = verify(args.package)
     if args.dry_run:
         configure_qr_uart(dry_run=True)
@@ -151,6 +157,7 @@ def install(args):
         backup.mkdir(parents=True)
         swapped = []
         override_installed = False
+        debug_removed = False
         try:
             dropin_dir.mkdir(parents=True, exist_ok=True)
             # systemd requires clearing the original ExecStart before replacing it.
@@ -161,6 +168,10 @@ def install(args):
             if existing_override is None:
                 dropin.write_text(override_text)
                 override_installed = True
+            # Release mode must take precedence over a previous local debug deployment.
+            if debug_dropin.is_file():
+                debug_dropin.unlink()
+                debug_removed = True
             run("systemctl", "daemon-reload")
             # wb-ui.service requires wb-srv and may be stopped by systemd; restart if needed.
             for live, staged in ((jar, stage / "wb.srv.jar"), (ui, stage / "static")):
@@ -200,6 +211,9 @@ def install(args):
                 previous.rename(live)
             if override_installed:
                 dropin.unlink(missing_ok=True)
+            if debug_removed:
+                debug_dropin.write_text(expected_debug)
+            if override_installed or debug_removed:
                 try: run("systemctl", "daemon-reload")
                 except Exception: pass
             try: run("systemctl", "start", "wb-srv.service")
