@@ -115,8 +115,8 @@ def install(args):
     expected_override = "[Service]\nExecStart=\nExecStart=/usr/bin/java -jar /opt/wb.srv/wb.srv.jar\n"
     if dropin.is_symlink() or (existing_override is not None and existing_override != expected_override):
         raise FileExistsError("Unknown systemd override: " + str(dropin))
-    expected_debug = ("[Service]\\nExecStart=\\n"
-                      "ExecStart=/usr/bin/java -cp /opt/wb.srv/wb.srv.jar:/opt/wb.srv/lib/* net.an2an.wb.server.Application\\n")
+    expected_debug = ("[Service]\nExecStart=\n"
+                      "ExecStart=/usr/bin/java -cp /opt/wb.srv/wb.srv.jar:/opt/wb.srv/lib/* net.an2an.wb.server.Application\n")
     if debug_dropin.is_symlink() or (debug_dropin.exists() and
        (not debug_dropin.is_file() or debug_dropin.read_text() != expected_debug)):
         raise FileExistsError("Unknown debug systemd override: " + str(debug_dropin))
