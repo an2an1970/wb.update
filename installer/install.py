@@ -15,6 +15,7 @@ import urllib.request
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "packager"))
 from build import verify
+from experiment_storage import configure as configure_experiment_storage
 
 ROOT = Path("/opt/wb.srv")
 EXPECTED = {"backend/wb.srv.jar", "ui/dist.zip", "firmware/v4/app.bin",
@@ -122,6 +123,7 @@ def install(args):
     manifest = verify(args.package)
     if args.dry_run:
         configure_qr_uart(dry_run=True)
+        configure_experiment_storage(root, dry_run=True)
         print(json.dumps({"verified": True, "version": manifest["version"], "root": str(root),
                           "jar": str(jar), "ui": str(ui), "firmware": "will flash on installation"}, indent=2))
         return
@@ -132,6 +134,7 @@ def install(args):
     if root != ROOT:
         raise ValueError("This installer only supports /opt/wb.srv; systemd override uses that path")
     configure_qr_uart(dry_run=True)
+    configure_experiment_storage(root, dry_run=True)
     # All temporary and backup files reside on the same filesystem as live files.
     with tempfile.TemporaryDirectory(prefix=".wb-update-", dir=root) as tmp:
         stage = Path(tmp)
@@ -165,6 +168,7 @@ def install(args):
             run("systemctl", "stop", "wb-srv.service")
             flash_firmware(args.package, stage, root)
             configure_qr_uart()
+            configure_experiment_storage(root)
             if existing_override is None:
                 dropin.write_text(override_text)
                 override_installed = True
