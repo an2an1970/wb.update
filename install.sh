@@ -9,6 +9,7 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$WORK/packager"
 curl -fsSL --retry 3 "$BASE/installer/install.py" -o "$WORK/install.py"
+curl -fsSL --retry 3 "$BASE/installer/experiment_storage.py" -o "$WORK/experiment_storage.py"
 curl -fsSL --retry 3 "$BASE/installer/setup-qr-uart.sh" -o "$WORK/setup-qr-uart.sh"
 curl -fsSL --retry 3 "$BASE/packager/build.py" -o "$WORK/packager/build.py"
 if [[ "$VERSION" == "latest" ]]; then
