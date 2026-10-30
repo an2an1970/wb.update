@@ -80,12 +80,12 @@ def update_properties(path):
         i = indices[0]
         if lines[i].strip().split("=", 1)[1].strip() == VALUE:
             return
-        newline = "\\r\\n" if lines[i].endswith("\\r\\n") else "\\n"
+        newline = "\r\n" if lines[i].endswith("\r\n") else "\n"
         lines[i] = PROP + "=" + VALUE + newline
     else:
-        if lines and not lines[-1].endswith(("\\n", "\\r")):
-            lines[-1] += "\\n"
-        lines.append(PROP + "=" + VALUE + "\\n")
+        if lines and not lines[-1].endswith(("\n", "\r")):
+            lines[-1] += "\n"
+        lines.append(PROP + "=" + VALUE + "\n")
     new = "".join(lines).encode("utf-8")
     fd, tmp = tempfile.mkstemp(prefix=".application-local-", dir=path.parent)
     try:
@@ -116,6 +116,11 @@ def configure(root=Path("/opt/wb.srv"), dry_run=False):
     if BASE.is_symlink() or DEST.is_symlink():
         raise RuntimeError("Storage destination cannot be a symlink")
     check_compatible(source, DEST) if source else entries(DEST)
+    backup = root / "backup" / "exp-before-migration"
+    if source and (backup.exists() or backup.is_symlink()):
+        raise RuntimeError(f"Experiment backup already exists: {backup}")
+    if prop.is_symlink() or (prop.exists() and not prop.is_file()):
+        raise RuntimeError(f"Unsafe properties file: {prop}")
     if dry_run:
         print(f"Experiment storage preflight OK; service user: {user}")
         return
@@ -147,8 +152,8 @@ def configure(root=Path("/opt/wb.srv"), dry_run=False):
         for name in dirs + files:
             os.chown(os.path.join(parent, name), uid, gid)
     # Verify access as the service identity, not root.
-    subprocess.run(["runuser", "-u", user, "--", "test", "-w", str(DEST)], check=True)
-    subprocess.run(["runuser", "-u", user, "--", "test", "-x", str(DEST)], check=True)
+    subprocess.run(["runuser", "-u", user, "--", "python3", "-c",
+                    "import os,tempfile; f,p=tempfile.mkstemp(dir='/var/lib/wb/exp'); os.write(f,b'wb-test'); os.close(f); os.unlink(p)"], check=True)
     if source:
         # Keep original data in a separate backup until explicitly cleaned up.
         backup = root / "backup" / "exp-before-migration"
