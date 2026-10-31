@@ -16,7 +16,10 @@ import urllib.request
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "packager"))
 from build import verify
-from experiment_storage import configure as configure_experiment_storage
+try:
+    from .experiment_storage import configure as configure_experiment_storage
+except ImportError:
+    from experiment_storage import configure as configure_experiment_storage
 
 ROOT = Path("/opt/wb.srv")
 EXPECTED = {"backend/wb.srv.jar", "ui/dist.zip", "firmware/v4/app.bin",
