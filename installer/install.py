@@ -167,11 +167,11 @@ def install(args):
         with zipfile.ZipFile(stage / "wb.srv.jar") as new_jar:
             if "BOOT-INF/classes/net/an2an/wb/server/Application.class" not in new_jar.namelist():
                 raise ValueError("Expected executable Spring Boot JAR with Application.class")
-        script_changed = stage_script(stage / "wb.srv.jar", stage, script)
         # Preserve permissions and ownership of existing deployment files.
         shutil.copymode(jar, stage / "wb.srv.jar")
         shutil.copystat(jar, stage / "wb.srv.jar")
         os.chown(stage / "wb.srv.jar", jar.stat().st_uid, jar.stat().st_gid)
+        script_changed = stage_script(stage / "wb.srv.jar", stage, script)
         shutil.copystat(ui, stage / "static")
         for base, dirs, files in os.walk(stage / "static"):
             for name in dirs + files:
