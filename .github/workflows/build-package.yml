@@ -1,5 +1,9 @@
 name: Build WB Package
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-package.yml'
   workflow_dispatch:
     inputs:
       version:
@@ -13,11 +17,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 -m unittest discover -s tests -v
+      - name: Wait for fresh server artifact
+        env:
+          GH_TOKEN: ${{ secrets.WB_RELEASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          EXPECTED="f014de908eed0212ab786f4ef60db0c8491dc17d"
+          for i in $(seq 1 60); do
+            SHA=$(gh api repos/an2an1970/wb.srv/releases --jq \'.[] | select(.assets | any(.name | test("^wb\\\\.srv-.*\\\\.jar$"))) | .target_commitish\' | head -n 1 || true)
+            if [ "$SHA" = "$EXPECTED" ]; then exit 0; fi
+            sleep 20
+          done
+          echo "Fresh server artifact not published" >&2
+          exit 1
       - name: Build package from releases
         run: bash scripts/build-from-releases.sh
         env:
           WB_RELEASE_TOKEN: ${{ secrets.WB_RELEASE_TOKEN }}
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ inputs.version || '0.2.2' }}
       - uses: actions/upload-artifact@v4
         with:
           name: wb-package
@@ -32,5 +49,5 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "wb-${VERSION}.wbpkg" --clobber
           else
-            gh release create "$TAG" "wb-${VERSION}.wbpkg" --title "WB ${VERSION}" --notes "WB deployment package. Unsigned test release; firmware not flashed by installer."
+            gh release create "$TAG" "wb-${VERSION}.wbpkg" --title "WB ${VERSION}" --notes-file CHANGELOG.md
           fi
