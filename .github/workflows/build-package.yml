@@ -24,7 +24,7 @@ jobs:
           set -euo pipefail
           EXPECTED="f014de908eed0212ab786f4ef60db0c8491dc17d"
           for i in $(seq 1 60); do
-            SHA=$(gh api repos/an2an1970/wb.srv/releases --jq \'.[] | select(.assets | any(.name | test("^wb\\\\.srv-.*\\\\.jar$"))) | .target_commitish\' | head -n 1 || true)
+            SHA=$(gh api repos/an2an1970/wb.srv/releases --jq '.[0].target_commitish' || true)
             if [ "$SHA" = "$EXPECTED" ]; then exit 0; fi
             sleep 20
           done
@@ -42,7 +42,7 @@ jobs:
       - name: Publish downloadable release
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ inputs.version || '0.2.2' }}
         run: |
           set -euo pipefail
           TAG="v${VERSION}"
