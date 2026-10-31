@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Install WB backend, UI, and flash ESP32-S3 on WB v4 hardware."""
 import argparse
+import hashlib
 import io
 import json
 import os
@@ -59,6 +60,30 @@ def prepare(pkg, dest):
         raise ValueError("UI ZIP must contain index.html at root")
     return manifest
 
+def stage_script(jar_path, stage, live_script):
+    """Extract the shipped script; only replace it when bytes differ."""
+    if live_script.is_symlink() or (live_script.exists() and not live_script.is_file()):
+        raise ValueError("Unsafe existing script.js: " + str(live_script))
+    with zipfile.ZipFile(jar_path) as archive:
+        script_name = "BOOT-INF/classes/script.js"
+        if script_name not in archive.namelist():
+            raise ValueError("Server JAR is missing " + script_name)
+        content = archive.read(script_name)
+    if not content.strip():
+        raise ValueError("Bundled script.js is empty")
+    if live_script.exists() and hashlib.sha256(live_script.read_bytes()).digest() == hashlib.sha256(content).digest():
+        return False
+    staged = stage / "script.js"
+    staged.write_bytes(content)
+    if live_script.exists():
+        shutil.copystat(live_script, staged)
+        os.chown(staged, live_script.stat().st_uid, live_script.stat().st_gid)
+    else:
+        source_stat = (stage / "wb.srv.jar").stat()
+        os.chown(staged, source_stat.st_uid, source_stat.st_gid)
+        staged.chmod(0o644)
+    return True
+
 def flash_firmware(package, stage, root):
     """Always flash all ESP32-S3 images. Requires verified local WB hardware scripts."""
     boot = root / "boot.sh"
@@ -103,7 +128,7 @@ def install(args):
     root = Path(args.root)
     if root.is_symlink() or not root.is_dir():
         raise ValueError("Invalid deployment root")
-    jar, ui = root / "wb.srv.jar", root / "static"
+    jar, ui, script = root / "wb.srv.jar", root / "static", root / "script.js"
     if jar.is_symlink() or ui.is_symlink() or not jar.is_file() or not ui.is_dir():
         raise ValueError("Expected regular JAR and static directory")
     if not (root / "lib").is_dir():
@@ -142,6 +167,7 @@ def install(args):
         with zipfile.ZipFile(stage / "wb.srv.jar") as new_jar:
             if "BOOT-INF/classes/net/an2an/wb/server/Application.class" not in new_jar.namelist():
                 raise ValueError("Expected executable Spring Boot JAR with Application.class")
+        script_changed = stage_script(stage / "wb.srv.jar", stage, script)
         # Preserve permissions and ownership of existing deployment files.
         shutil.copymode(jar, stage / "wb.srv.jar")
         shutil.copystat(jar, stage / "wb.srv.jar")
@@ -178,10 +204,15 @@ def install(args):
                 debug_removed = True
             run("systemctl", "daemon-reload")
             # wb-ui.service requires wb-srv and may be stopped by systemd; restart if needed.
-            for live, staged in ((jar, stage / "wb.srv.jar"), (ui, stage / "static")):
+            replacements = [(jar, stage / "wb.srv.jar"), (ui, stage / "static")]
+            if script_changed:
+                replacements.append((script, stage / "script.js"))
+            for live, staged in replacements:
                 previous = backup / live.name
-                live.rename(previous)
-                swapped.append((live, previous))
+                had_previous = live.exists()
+                if had_previous:
+                    live.rename(previous)
+                swapped.append((live, previous if had_previous else None))
                 staged.rename(live)
             run("systemctl", "start", "wb-srv.service")
             # Wait for Spring Boot readiness, not merely process startup.
@@ -202,7 +233,8 @@ def install(args):
             run("systemctl", "start", "wb-ui.service")
             run("systemctl", "is-active", "--quiet", "wb-ui.service")
             print(json.dumps({"installed": manifest["version"], "backup": str(backup),
-                              "firmware": "flashed", "qr_uart": "configured", "reboot": "scheduled in 1 minute"}, indent=2))
+                              "firmware": "flashed", "script_changed": script_changed,
+                              "qr_uart": "configured", "reboot": "scheduled in 1 minute"}, indent=2))
             # Delay reboot so SSH/bootstrap can receive the success response.
             run("shutdown", "-r", "+1", "WB update completed")
         except BaseException:
@@ -212,7 +244,8 @@ def install(args):
                 if live.exists():
                     if live.is_dir(): shutil.rmtree(live)
                     else: live.unlink()
-                previous.rename(live)
+                if previous is not None:
+                    previous.rename(live)
             if override_installed:
                 dropin.unlink(missing_ok=True)
             if debug_removed:
