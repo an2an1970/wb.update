@@ -51,8 +51,8 @@ def prepare(pkg, dest):
     manifest = verify(pkg)
     if manifest.get("schema") != 1 or manifest.get("target") != {"board": "wb-v4", "mcu": "esp32s3"}:
         raise ValueError("Unsupported package")
-    if set(manifest["files"]) != EXPECTED:
-        raise ValueError("Unexpected package contents")
+    if not EXPECTED.issubset(set(manifest["files"])):
+        raise ValueError("Missing deployment payload")
     with zipfile.ZipFile(pkg) as z:
         (dest / "wb.srv.jar").write_bytes(z.read("backend/wb.srv.jar"))
         ui = dest / "static"
