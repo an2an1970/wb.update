@@ -1,5 +1,7 @@
 import io
 import json
+import subprocess
+import sys
 from pathlib import Path
 import tempfile
 import unittest
@@ -21,6 +23,12 @@ class PackageTests(unittest.TestCase):
             b = build(Namespace(**opts, output=str(p/'b.wbpkg')))
             self.assertEqual(a.read_bytes(), b.read_bytes())
             self.assertEqual(verify(a)['target']['board'], 'wb-v4')
+            with zipfile.ZipFile(a) as package:
+                for name in ('__main__.py', 'installer/install.py', 'installer/experiment_storage.py', 'installer/setup-qr-uart.sh', 'packager/build.py'):
+                    self.assertIn(name, package.namelist())
+            proc = subprocess.run([sys.executable, str(a), '--help'], capture_output=True, text=True)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertIn('--dry-run', proc.stdout)
             with zipfile.ZipFile(a) as z:
                 entries = {n:z.read(n) for n in z.namelist()}
             entries['firmware/v4/app.bin'] = b'corrupt'
