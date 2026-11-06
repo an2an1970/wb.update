@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/build-package.yml'
       - 'installer/**'
+      - 'packager/**'
+      - 'tests/**'
   workflow_dispatch:
     inputs:
       version:
@@ -35,7 +37,7 @@ jobs:
         run: bash scripts/build-from-releases.sh
         env:
           WB_RELEASE_TOKEN: ${{ secrets.WB_RELEASE_TOKEN }}
-          VERSION: ${{ inputs.version || '0.2.2' }}
+          VERSION: ${{ inputs.version || '0.2.3' }}
       - uses: actions/upload-artifact@v4
         with:
           name: wb-package
@@ -43,7 +45,7 @@ jobs:
       - name: Publish downloadable release
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ inputs.version || '0.2.2' }}
+          VERSION: ${{ inputs.version || '0.2.3' }}
         run: |
           set -euo pipefail
           TAG="v${VERSION}"
