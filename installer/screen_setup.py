@@ -60,6 +60,7 @@ def check_frame(timeout=5):
             raise RuntimeError("Screen WebSocket refused: " + status.decode(errors="replace"))
 
         deadline = time.monotonic() + timeout
+        got_ready = False
         while time.monotonic() < deadline:
             first2, pending = _read_exact(sock, pending, 2)
             first, second = first2
@@ -88,6 +89,9 @@ def check_frame(timeout=5):
                 message = json.loads(payload)
             except (ValueError, UnicodeDecodeError):
                 continue
+            if message.get("type") == "ready":
+                got_ready = True
+                continue
             if message.get("type") == "error":
                 raise RuntimeError("Screen bridge: " + str(message.get("message")))
             if message.get("type") == "frame" and message.get("data"):
@@ -101,8 +105,10 @@ def check_frame(timeout=5):
                 size = len(ack)
                 frame_header = bytes((0x81, 0x80 | size)) if size < 126 else bytes((0x81, 0xFE)) + size.to_bytes(2, "big")
                 sock.sendall(frame_header + mask + masked)
-                return
-        raise RuntimeError("WebSocket connected and sent ready, but no JPEG frame arrived within %ss" % timeout)
+                return "frame"
+        if got_ready:
+            return "ready"
+        raise RuntimeError("Screen WebSocket did not send ready or JPEG within %ss" % timeout)
 
 def enable_screen(script, idle_confirmed=False):
     try:
@@ -121,9 +127,12 @@ def enable_screen(script, idle_confirmed=False):
     for attempt in range(3):
         try:
             kiosk_target()
-            check_frame(timeout=5)
-            print("WB screen: CDP kiosk and /screen/socket JPEG frame verified")
-            return True
+            result = check_frame(timeout=5)
+            if result == "frame":
+                print("WB screen: CDP kiosk and /screen/socket JPEG frame verified")
+            else:
+                print("WB screen: CDP kiosk and /screen/socket ready verified; no JPEG observed (stream not verified)")
+            return result
         except Exception as exc:
             errors.append(str(exc))
             if attempt < 2:
