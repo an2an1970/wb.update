@@ -7,13 +7,17 @@ import socket
 import subprocess
 import time
 import urllib.request
+from urllib.parse import urlsplit
 
 CDP = "http://127.0.0.1:9222/json/list"
 def kiosk_target():
     with urllib.request.urlopen(CDP, timeout=3) as response:
         targets = json.load(response)
     for target in targets:
-        if target.get("type") == "page" and target.get("url", "").rstrip("/") == "http://127.0.0.1:7777":
+        if target.get("type") == "page" and urlsplit(target.get("url", "")).scheme == "http" and
+                urlsplit(target.get("url", "")).hostname in ("127.0.0.1", "localhost") and
+                urlsplit(target.get("url", "")).port == 7777 and
+                urlsplit(target.get("url", "")).path in ("", "/"):
             if target.get("webSocketDebuggerUrl"):
                 return target
     raise RuntimeError("CDP reachable but kiosk page http://127.0.0.1:7777/ missing")
