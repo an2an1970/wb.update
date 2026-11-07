@@ -14,12 +14,13 @@ def kiosk_target():
     with urllib.request.urlopen(CDP, timeout=3) as response:
         targets = json.load(response)
     for target in targets:
-        if target.get("type") == "page" and urlsplit(target.get("url", "")).scheme == "http" and
-                urlsplit(target.get("url", "")).hostname in ("127.0.0.1", "localhost") and
-                urlsplit(target.get("url", "")).port == 7777 and
-                urlsplit(target.get("url", "")).path in ("", "/"):
-            if target.get("webSocketDebuggerUrl"):
-                return target
+        if target.get("type") != "page":
+            continue
+        url = urlsplit(target.get("url", ""))
+        if (url.scheme == "http" and url.hostname in ("127.0.0.1", "localhost")
+                and url.port == 7777 and url.path in ("", "/")
+                and target.get("webSocketDebuggerUrl")):
+            return target
     raise RuntimeError("CDP reachable but kiosk page http://127.0.0.1:7777/ missing")
 
 def check_frame(timeout=12):
