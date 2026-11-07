@@ -20,6 +20,7 @@ try:
     from .experiment_storage import configure as configure_experiment_storage
 except ImportError:
     from experiment_storage import configure as configure_experiment_storage
+from screen_setup import enable_screen
 
 ROOT = Path("/opt/wb.srv")
 EXPECTED = {"backend/wb.srv.jar", "ui/dist.zip", "firmware/v4/app.bin",
@@ -235,9 +236,10 @@ def install(args):
             # The kiosk service may have been stopped through Requires=.
             run("systemctl", "start", "wb-ui.service")
             run("systemctl", "is-active", "--quiet", "wb-ui.service")
+            screen_ok = enable_screen(Path(__file__).resolve().with_name("enable-wb-screen.sh"), args.screen_idle_confirmed)
             print(json.dumps({"installed": manifest["version"], "backup": str(backup),
                               "firmware": "flashed", "script_changed": script_changed,
-                              "qr_uart": "configured", "reboot": "scheduled in 1 minute"}, indent=2))
+                              "qr_uart": "configured", "screen": "verified" if screen_ok else "deferred until idle", "reboot": "scheduled in 1 minute"}, indent=2))
             # Delay reboot so SSH/bootstrap can receive the success response.
             run("shutdown", "-r", "+1", "WB update completed")
         except BaseException:
@@ -267,6 +269,7 @@ def main():
     p.add_argument("package")
     p.add_argument("--root", default=str(ROOT))
     p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--screen-idle-confirmed", action="store_true", help="Allow kiosk restart to enable CDP only when instrument is idle")
     p.add_argument("--allow-unsigned", action="store_true", help="TEST ONLY")
     install(p.parse_args())
 
