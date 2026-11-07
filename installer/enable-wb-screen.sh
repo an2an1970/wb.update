@@ -10,7 +10,12 @@ profile="$home/.config/wb-screen-chromium"
 start="$(systemctl cat "$service" | awk '/^ExecStart=/{v=substr($0,11)} END{print v}')"
 [[ "$start" == *--kiosk* ]] || { echo 'Kiosk ExecStart not found' >&2; exit 1; }
 if [[ "$start" == *--remote-debugging-port=9222* ]]; then
-  echo 'Screen debugging already enabled'
+  if curl --silent --fail --max-time 3 http://127.0.0.1:9222/json/list >/dev/null; then
+    echo 'Screen debugging already active'
+    exit 0
+  fi
+  echo 'CDP configured but not listening; restarting kiosk once' >&2
+  systemctl restart "$service"
   exit 0
 fi
 [[ "$start" != *--user-data-dir* ]] || { echo 'Existing custom profile: review ExecStart first' >&2; exit 1; }
