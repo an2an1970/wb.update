@@ -1,56 +1,58 @@
 name: Build WB Package
 on:
   push:
-    branches: [main]
-    paths:
-      - '.github/workflows/build-package.yml'
-      - 'installer/**'
-      - 'packager/**'
-      - 'tests/**'
-  workflow_dispatch:
-    inputs:
-      version:
-        required: true
-        default: "0.1.0"
+    tags:
+      - 'v*.*.*'
 permissions:
   contents: write
+concurrency:
+  group: wb-release-${{ github.ref_name }}
+  cancel-in-progress: false
 jobs:
   package:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - run: python3 -m unittest discover -s tests -v
-      - name: Wait for fresh server artifact
+        with:
+          persist-credentials: true
+      - name: Validate release
         env:
-          GH_TOKEN: ${{ secrets.WB_RELEASE_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          EXPECTED="e35f786e9863d433c9e08f6be27dcfa10537bd8a"
-          for i in $(seq 1 60); do
-            SHA=$(gh api repos/an2an1970/wb.srv/releases --jq '.[0].target_commitish' || true)
-            if [ "$SHA" = "$EXPECTED" ]; then exit 0; fi
-            sleep 20
-          done
-          echo "Fresh server artifact not published" >&2
-          exit 1
-      - name: Build package from releases
-        run: bash scripts/build-from-releases.sh
-        env:
-          WB_RELEASE_TOKEN: ${{ secrets.WB_RELEASE_TOKEN }}
-          VERSION: ${{ inputs.version || '0.2.9' }}
-      - uses: actions/upload-artifact@v4
-        with:
-          name: wb-package
-          path: wb-*.wbpkg
-      - name: Publish downloadable release
+          python3 scripts/validate-release.py --tag "$RELEASE_TAG" --notes-file release-notes.md
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
+      - run: python3 -m unittest discover -s tests -v
+      - name: Reject existing release
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ inputs.version || '0.2.9' }}
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          TAG="v${VERSION}"
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "wb-${VERSION}.wbpkg" --clobber
-          else
-            gh release create "$TAG" "wb-${VERSION}.wbpkg" --title "WB ${VERSION}" --notes-file CHANGELOG.md
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Release $RELEASE_TAG already exists; refusing to overwrite" >&2
+            exit 1
           fi
+      - name: Build package from pinned component releases
+        env:
+          WB_RELEASE_TOKEN: ${{ secrets.WB_RELEASE_TOKEN }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          VERSION="${VERSION#v}"
+          export VERSION
+          bash scripts/build-from-releases.sh
+          python3 packager/build.py verify "wb-${VERSION}.wbpkg"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wb-package-${{ github.ref_name }}
+          path: wb-*.wbpkg
+      - name: Publish immutable-version release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          VERSION="${RELEASE_TAG#v}"
+          gh release create "$RELEASE_TAG" "wb-${VERSION}.wbpkg" \
+            --title "WB ${VERSION}" --notes-file release-notes.md --verify-tag

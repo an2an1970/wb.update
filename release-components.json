@@ -1,0 +1,17 @@
+{
+  "version": "0.2.10",
+  "components": {
+    "wb.srv": {
+      "tag": "4.0-142-ge35f786-pi",
+      "sha": "e35f786e9863d433c9e08f6be27dcfa10537bd8a"
+    },
+    "wb.ui": {
+      "tag": "0.3-216",
+      "sha": "d6410eeedcce4f7c6a575cc35e4393d527bdce84"
+    },
+    "wb.arduino": {
+      "tag": "build-S3SIM_v1.9.161_3c7055d",
+      "sha": "3c7055d1e7bdfe9f44153d64b67526b780f5f61b"
+    }
+  }
+}

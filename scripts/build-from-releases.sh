@@ -2,18 +2,24 @@
 set -euo pipefail
 export WB_RELEASE_TOKEN="${WB_RELEASE_TOKEN:-${GH_TOKEN:-}}"
 : "${WB_RELEASE_TOKEN:?Set WB_RELEASE_TOKEN or GH_TOKEN}"
-python3 scripts/fetch_releases.py
-readarray -t SHAS < <(python3 - <<'PY'
+: "${VERSION:?VERSION must come from release tag}"
+python3 scripts/validate-release.py --tag "v${VERSION}"
+readarray -t PINS < <(python3 - <<'PY'
 import json
-d = json.load(open("downloaded/selected-releases.json"))
+d = json.load(open("release-components.json"))["components"]
 for repo in ("wb.srv", "wb.ui", "wb.arduino"):
+    print(d[repo]["tag"])
     print(d[repo]["sha"])
 PY
 )
+python3 scripts/fetch_releases.py \
+  --backend-tag "${PINS[0]}" --backend-sha "${PINS[1]}" \
+  --ui-tag "${PINS[2]}" --ui-sha "${PINS[3]}" \
+  --firmware-tag "${PINS[4]}" --firmware-sha "${PINS[5]}"
 python3 packager/build.py build \
-  --version "${VERSION:-0.1.0}" \
+  --version "${VERSION}" \
   --backend downloaded/backend.jar --ui downloaded/ui.zip \
   --firmware downloaded/app.bin --bootloader downloaded/bootloader.bin \
   --partitions downloaded/partitions.bin \
-  --backend-sha "${SHAS[0]}" --ui-sha "${SHAS[1]}" --firmware-sha "${SHAS[2]}" \
-  --output "wb-${VERSION:-0.1.0}.wbpkg"
+  --backend-sha "${PINS[1]}" --ui-sha "${PINS[3]}" --firmware-sha "${PINS[5]}" \
+  --output "wb-${VERSION}.wbpkg"
