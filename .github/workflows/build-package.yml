@@ -25,7 +25,7 @@ jobs:
           GH_TOKEN: ${{ secrets.WB_RELEASE_TOKEN }}
         run: |
           set -euo pipefail
-          EXPECTED="59124f3545a820c8df286cf58fae901bb1b75f53"
+          EXPECTED="e35f786e9863d433c9e08f6be27dcfa10537bd8a"
           for i in $(seq 1 60); do
             SHA=$(gh api repos/an2an1970/wb.srv/releases --jq '.[0].target_commitish' || true)
             if [ "$SHA" = "$EXPECTED" ]; then exit 0; fi
