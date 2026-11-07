@@ -250,7 +250,9 @@ def install(args):
                 print("WARNING: WB screen verification failed: " + screen_error, file=sys.stderr)
             print(json.dumps({"installed": manifest["version"], "backup": str(backup),
                               "firmware": "flashed", "script_changed": script_changed,
-                              "qr_uart": "configured", "screen": "verified" if screen_ok else ("failed: " + screen_error if screen_error else "deferred until idle"), "reboot": "scheduled in 1 minute"}, indent=2))
+                              "qr_uart": "configured", "screen": ("verified" if screen_ok == "frame" else
+                                         "ready (JPEG stream unverified)" if screen_ok == "ready" else
+                                         "failed: " + screen_error if screen_error else "deferred until idle"), "reboot": "scheduled in 1 minute"}, indent=2))
             # Delay reboot so SSH/bootstrap can receive the success response.
             run("shutdown", "-r", "+1", "WB update completed")
         except BaseException:
