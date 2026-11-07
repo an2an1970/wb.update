@@ -12,7 +12,8 @@ def main():
         root = Path(tmp)
         with zipfile.ZipFile(package) as archive:
             names = ("installer/install.py", "installer/experiment_storage.py",
-                     "installer/setup-qr-uart.sh", "packager/build.py")
+                     "installer/setup-qr-uart.sh", "installer/enable-wb-screen.sh",
+                     "installer/screen_setup.py", "packager/build.py")
             for name in names:
                 target = root / name
                 target.parent.mkdir(parents=True, exist_ok=True)
