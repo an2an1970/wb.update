@@ -62,7 +62,12 @@ def check_frame(timeout=5):
         deadline = time.monotonic() + timeout
         got_ready = False
         while time.monotonic() < deadline:
-            first2, pending = _read_exact(sock, pending, 2)
+            try:
+                first2, pending = _read_exact(sock, pending, 2)
+            except socket.timeout:
+                if got_ready:
+                    return "ready"
+                raise
             first, second = first2
             length = second & 127
             if length == 126:
