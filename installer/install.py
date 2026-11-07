@@ -20,7 +20,10 @@ try:
     from .experiment_storage import configure as configure_experiment_storage
 except ImportError:
     from experiment_storage import configure as configure_experiment_storage
-from screen_setup import enable_screen
+try:
+    from .screen_setup import enable_screen
+except ImportError:
+    from screen_setup import enable_screen
 
 ROOT = Path("/opt/wb.srv")
 EXPECTED = {"backend/wb.srv.jar", "ui/dist.zip", "firmware/v4/app.bin",
