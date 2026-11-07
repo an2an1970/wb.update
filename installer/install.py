@@ -239,10 +239,18 @@ def install(args):
             # The kiosk service may have been stopped through Requires=.
             run("systemctl", "start", "wb-ui.service")
             run("systemctl", "is-active", "--quiet", "wb-ui.service")
-            screen_ok = enable_screen(Path(__file__).resolve().with_name("enable-wb-screen.sh"), args.screen_idle_confirmed)
+            screen_error = None
+            try:
+                screen_ok = enable_screen(Path(__file__).resolve().with_name("enable-wb-screen.sh"), args.screen_idle_confirmed)
+            except Exception as exc:
+                # Screen setup is post-install; do not roll back a healthy server/UI
+                # or leave flashed firmware inconsistent because CDP verification failed.
+                screen_ok = False
+                screen_error = str(exc)
+                print("WARNING: WB screen verification failed: " + screen_error, file=sys.stderr)
             print(json.dumps({"installed": manifest["version"], "backup": str(backup),
                               "firmware": "flashed", "script_changed": script_changed,
-                              "qr_uart": "configured", "screen": "verified" if screen_ok else "deferred until idle", "reboot": "scheduled in 1 minute"}, indent=2))
+                              "qr_uart": "configured", "screen": "verified" if screen_ok else ("failed: " + screen_error if screen_error else "deferred until idle"), "reboot": "scheduled in 1 minute"}, indent=2))
             # Delay reboot so SSH/bootstrap can receive the success response.
             run("shutdown", "-r", "+1", "WB update completed")
         except BaseException:
