@@ -25,7 +25,7 @@ jobs:
           GH_TOKEN: ${{ secrets.WB_RELEASE_TOKEN }}
         run: |
           set -euo pipefail
-          EXPECTED="f014de908eed0212ab786f4ef60db0c8491dc17d"
+          EXPECTED="59124f3545a820c8df286cf58fae901bb1b75f53"
           for i in $(seq 1 60); do
             SHA=$(gh api repos/an2an1970/wb.srv/releases --jq '.[0].target_commitish' || true)
             if [ "$SHA" = "$EXPECTED" ]; then exit 0; fi
@@ -37,7 +37,7 @@ jobs:
         run: bash scripts/build-from-releases.sh
         env:
           WB_RELEASE_TOKEN: ${{ secrets.WB_RELEASE_TOKEN }}
-          VERSION: ${{ inputs.version || '0.2.3' }}
+          VERSION: ${{ inputs.version || '0.2.4' }}
       - uses: actions/upload-artifact@v4
         with:
           name: wb-package
@@ -45,7 +45,7 @@ jobs:
       - name: Publish downloadable release
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ inputs.version || '0.2.3' }}
+          VERSION: ${{ inputs.version || '0.2.4' }}
         run: |
           set -euo pipefail
           TAG="v${VERSION}"
