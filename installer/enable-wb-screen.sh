@@ -14,9 +14,19 @@ if [[ "$start" == *--remote-debugging-port=9222* ]]; then
     echo 'Screen debugging already active'
     exit 0
   fi
-  echo 'CDP configured but not listening; restarting kiosk once' >&2
-  systemctl restart "$service"
-  exit 0
+  echo 'CDP configured but not listening; requesting one non-blocking kiosk restart' >&2
+  systemctl restart --no-block "$service"
+  for attempt in $(seq 1 45); do
+    if curl --silent --fail --max-time 2 http://127.0.0.1:9222/json/list >/dev/null; then
+      echo "CDP became ready after kiosk restart (${attempt}s)"
+      exit 0
+    fi
+    sleep 1
+  done
+  echo 'CDP did not start within 45 seconds after wb-ui restart' >&2
+  systemctl status "$service" --no-pager >&2 || true
+  journalctl -u "$service" -n 40 --no-pager >&2 || true
+  exit 1
 fi
 [[ "$start" != *--user-data-dir* ]] || { echo 'Existing custom profile: review ExecStart first' >&2; exit 1; }
 flags="--kiosk --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222 --user-data-dir=$profile"
