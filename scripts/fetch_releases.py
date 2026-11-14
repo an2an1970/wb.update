@@ -78,7 +78,7 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     specs = [
         ("wb.srv", a.backend_tag, a.backend_sha, {"backend.jar": r"wb\.srv-.*\.jar"}),
-        ("wb.ui", a.ui_tag, a.ui_sha, {"ui.zip": r"ui-.*\.zip"}),
+        ("wb.ui", a.ui_tag, a.ui_sha, {"ui.zip": r"ui-(?!archive-).*\.zip"}),
         ("wb.arduino", a.firmware_tag, a.firmware_sha,
          {"app.bin": r"wb-v4-esp32s3-(?!bootloader|partitions).*\.bin",
           "bootloader.bin": r"wb-v4-esp32s3\.bootloader-.*\.bin",
