@@ -1,13 +1,13 @@
 {
-  "version": "0.2.12",
+  "version": "0.2.13",
   "components": {
     "wb.srv": {
-      "tag": "4.0-145-g44376a6-pi",
-      "sha": "44376a690d3512b56c2b9dab17b992404f6c70e8"
+      "tag": "4.0-146-g2de0dfb-pi",
+      "sha": "2de0dfb3c085e6863064657d3a03f0f917e71f69"
     },
     "wb.ui": {
-      "tag": "0.3-221",
-      "sha": "a2a7bd364915d47717121755d50dc8bc7d07f06f"
+      "tag": "0.3-224",
+      "sha": "61bc08f78bef31e3ce044e95773aacb08bc0be73"
     },
     "wb.arduino": {
       "tag": "build-S3SIM_v1.9.161_3c7055d",
