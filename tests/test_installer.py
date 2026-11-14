@@ -14,8 +14,15 @@ class InstallerTests(unittest.TestCase):
                     z.writestr(entry, "bad")
                 b.seek(0)
                 with zipfile.ZipFile(b) as z:
-                    with self.assertRaises(ValueError):
-                        safe_extract(z, Path(td))
+                    # On Windows ZipInfo normalizes backslashes into '/' when
+                    # constructing entries; inspect the actual archived name.
+                    archived_name = z.namelist()[0]
+                    with self.subTest(entry=entry, archived_name=archived_name):
+                        if archived_name != entry:
+                            self.assertEqual(archived_name, "x/y")
+                            continue
+                        with self.assertRaises(ValueError):
+                            safe_extract(z, Path(td))
             b = io.BytesIO()
             with zipfile.ZipFile(b, "w") as z:
                 z.writestr("index.html", "ok")

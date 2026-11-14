@@ -1,6 +1,6 @@
-# wb.update — iteration 1: offline package builder
+# wb.update — offline WB package builder
 
-Produces a deterministic `.wbpkg` ZIP from **exact release artifacts**: Spring Boot fat JAR, UI `dist` ZIP, ESP32-S3 **v4 only** firmware/bootloader/partitions BINs. Requires Python 3.10+; no dependencies.
+Produces a deterministic self-contained Python ZIP application `.wbpkg` from **exact release artifacts**: Spring Boot fat JAR, UI `dist` ZIP, ESP32-S3 **v4 only** firmware/bootloader/partitions BINs. Requires Python 3.10+; no dependencies.
 
 ```bash
 python3 packager/build.py build \
@@ -22,3 +22,15 @@ Release assets for this build:
 - wb.arduino: `build-S3SIM_v1.9.158_dcaba88` (v4 files only)
 
 **Security status:** SHA-256 protects against accidental corruption only; package signing/trusted provenance **not implemented yet**. Do not install packages on an instrument based solely on this verifier. Flash offsets are intentionally unspecified until verified from firmware build configuration. Installer, rollback, online downloader, and ESP flashing are not implemented in this iteration.
+
+## Install a published package on Raspberry Pi
+
+Download the single `wb-VERSION.wbpkg` file from the GitHub Release. Python 3.10+ is required; the installer and verifier are embedded in the package.
+
+```bash
+python3 wb-0.2.12.wbpkg verify
+sudo python3 wb-0.2.12.wbpkg install --dry-run
+sudo python3 wb-0.2.12.wbpkg install --allow-unsigned
+```
+
+The installer requires an existing /opt/wb.srv deployment, flashes the ESP32-S3, and schedules a reboot. Unsigned packages are for trusted test deployments only.

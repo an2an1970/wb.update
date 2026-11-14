@@ -28,12 +28,22 @@ class PackageTests(unittest.TestCase):
                     self.assertIn(name, package.namelist())
             proc = subprocess.run([sys.executable, str(a), '--help'], capture_output=True, text=True)
             self.assertEqual(proc.returncode, 0, proc.stderr)
-            self.assertIn('--dry-run', proc.stdout)
+            self.assertIn('verify', proc.stdout)
+            self.assertIn('install', proc.stdout)
+            verified = subprocess.run([sys.executable, str(a), 'verify'], capture_output=True, text=True)
+            self.assertEqual(verified.returncode, 0, verified.stderr)
+            self.assertIn('"valid_checksums": true', verified.stdout)
+            invalid = subprocess.run([sys.executable, str(a), 'verify', 'extra'], capture_output=True, text=True)
+            self.assertNotEqual(invalid.returncode, 0)
+            invalid = subprocess.run([sys.executable, str(a), 'bogus'], capture_output=True, text=True)
+            self.assertNotEqual(invalid.returncode, 0)
             with zipfile.ZipFile(a) as z:
                 entries = {n:z.read(n) for n in z.namelist()}
             entries['firmware/v4/app.bin'] = b'corrupt'
             with zipfile.ZipFile(p/'bad.wbpkg','w') as z:
                 for n,data in entries.items():z.writestr(n,data)
             with self.assertRaises(ValueError):verify(p/'bad.wbpkg')
+            bad = subprocess.run([sys.executable, str(p/'bad.wbpkg'), 'verify'], capture_output=True, text=True)
+            self.assertNotEqual(bad.returncode, 0)
 
 if __name__ == '__main__': unittest.main()

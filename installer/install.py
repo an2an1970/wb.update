@@ -16,15 +16,6 @@ import urllib.request
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "packager"))
 from build import verify
-try:
-    from .experiment_storage import configure as configure_experiment_storage
-except ImportError:
-    from experiment_storage import configure as configure_experiment_storage
-try:
-    from .screen_setup import enable_screen
-except ImportError:
-    from screen_setup import enable_screen
-
 ROOT = Path("/opt/wb.srv")
 EXPECTED = {"backend/wb.srv.jar", "ui/dist.zip", "firmware/v4/app.bin",
             "firmware/v4/bootloader.bin", "firmware/v4/partitions.bin"}
@@ -132,6 +123,13 @@ def configure_qr_uart(dry_run=False):
     run(*cmd)
 
 def install(args):
+    # Linux-only dependencies are loaded when installing, not during package tests.
+    try:
+        from .experiment_storage import configure as configure_experiment_storage
+        from .screen_setup import enable_screen
+    except ImportError:
+        from experiment_storage import configure as configure_experiment_storage
+        from screen_setup import enable_screen
     root = Path(args.root)
     if root.is_symlink() or not root.is_dir():
         raise ValueError("Invalid deployment root")

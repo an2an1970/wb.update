@@ -43,6 +43,8 @@ jobs:
           export VERSION
           bash scripts/build-from-releases.sh
           python3 packager/build.py verify "wb-${VERSION}.wbpkg"
+          python3 "wb-${VERSION}.wbpkg" verify
+          python3 "wb-${VERSION}.wbpkg" --help
       - uses: actions/upload-artifact@v4
         with:
           name: wb-package-${{ github.ref_name }}

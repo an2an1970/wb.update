@@ -1,5 +1,5 @@
 {
-  "version": "0.2.11",
+  "version": "0.2.12",
   "components": {
     "wb.srv": {
       "tag": "4.0-145-g44376a6-pi",
