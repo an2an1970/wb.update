@@ -165,6 +165,9 @@ def install(args):
         raise ValueError("This installer only supports /opt/wb.srv; systemd override uses that path")
     configure_qr_uart(dry_run=True)
     configure_experiment_storage(root, dry_run=True)
+    kiosk_script = Path(__file__).resolve().with_name("kiosk-lockdown.sh")
+    if not kiosk_script.is_file() or kiosk_script.is_symlink():
+        raise FileNotFoundError("Missing bundled kiosk lockdown script: " + str(kiosk_script))
     # All temporary and backup files reside on the same filesystem as live files.
     with tempfile.TemporaryDirectory(prefix=".wb-update-", dir=root) as tmp:
         stage = Path(tmp)
@@ -246,9 +249,17 @@ def install(args):
                 screen_ok = False
                 screen_error = str(exc)
                 print("WARNING: WB screen verification failed: " + screen_error, file=sys.stderr)
+            # Apply keyboard lockdown after server/UI recovery, before the scheduled reboot.
+            # Failure is reported and does not roll back already-flashed firmware.
+            kiosk_status = "configured"
+            try:
+                run("bash", str(kiosk_script))
+            except Exception as exc:
+                kiosk_status = "failed: " + str(exc)
+                print("WARNING: kiosk keyboard lockdown: " + str(exc), file=sys.stderr)
             print(json.dumps({"installed": manifest["version"], "backup": str(backup),
                               "firmware": "flashed", "script_changed": script_changed,
-                              "qr_uart": "configured", "screen": ("verified" if screen_ok == "frame" else
+                              "qr_uart": "configured", "kiosk_lockdown": kiosk_status, "screen": ("verified" if screen_ok == "frame" else
                                          "ready (JPEG stream unverified)" if screen_ok == "ready" else
                                          "failed: " + screen_error if screen_error else "deferred until idle"), "reboot": "scheduled in 1 minute"}, indent=2))
             # Delay reboot so SSH/bootstrap can receive the success response.

@@ -12,7 +12,7 @@ NAMES = ('backend/wb.srv.jar', 'ui/dist.zip', 'firmware/v4/app.bin',
          'firmware/v4/bootloader.bin', 'firmware/v4/partitions.bin')
 INSTALLER = ('__main__.py', 'installer/install.py', 'installer/experiment_storage.py',
              'installer/setup-qr-uart.sh', 'installer/enable-wb-screen.sh',
-             'installer/screen_setup.py', 'packager/build.py')
+             'installer/screen_setup.py', 'installer/kiosk-lockdown.sh', 'packager/build.py')
 
 
 def digest(data):
