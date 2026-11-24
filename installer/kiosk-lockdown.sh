@@ -8,16 +8,23 @@ HOME_DIR="$(getent passwd "$USER_NAME" | cut -d: -f6)"
 BACKUP="/var/lib/wb-kiosk-lockdown"
 OPENBOX_DIR="$HOME_DIR/.config/openbox"
 OPENBOX_FILE="$OPENBOX_DIR/lxde-pi-rc.xml"
+OPENBOX_TEMPLATE="/etc/xdg/openbox/lxde-pi-rc.xml"
+CREATED_MARKER="$BACKUP/openbox-created"
 XORG_FILE="/etc/X11/xorg.conf.d/98-wb-keyboard-lockdown.conf"
 LIGHTDM_FILE="/etc/lightdm/lightdm.conf.d/90-wb-kiosk-lockdown.conf"
 mkdir -p "$BACKUP" "$OPENBOX_DIR" "$(dirname "$XORG_FILE")" "$(dirname "$LIGHTDM_FILE")"
 if [[ "${1:-}" == "--disable" ]]; then
   for item in "$OPENBOX_FILE" "$XORG_FILE" "$LIGHTDM_FILE"; do
     name="$(echo "$item" | tr / _)"
-    if [[ -f "$BACKUP/$name" ]]; then cp "$BACKUP/$name" "$item"; else
-      [[ "$item" == "$OPENBOX_FILE" ]] || rm -f "$item"
+    if [[ -f "$BACKUP/$name" ]]; then
+      cp -p "$BACKUP/$name" "$item"
+    elif [[ "$item" == "$OPENBOX_FILE" ]]; then
+      if [[ -f "$CREATED_MARKER" ]]; then rm -f "$item"; fi
+    else
+      rm -f "$item"
     fi
   done
+  rm -f "$CREATED_MARKER"
   systemctl unmask ctrl-alt-del.target 2>/dev/null || true
   systemctl disable --now wb-kiosk-keyboard.service 2>/dev/null || true
   rm -f /etc/systemd/system/wb-kiosk-keyboard.service
@@ -30,6 +37,14 @@ for item in "$OPENBOX_FILE" "$XORG_FILE" "$LIGHTDM_FILE"; do
   if [[ -f "$item" && ! -e "$BACKUP/$name" ]]; then cp -p "$item" "$BACKUP/$name"; fi
 done
 # Preserve window rules, themes and menus; remove only global keyboard bindings.
+if [[ ! -f "$OPENBOX_FILE" ]]; then
+  if [[ ! -f "$OPENBOX_TEMPLATE" || -L "$OPENBOX_TEMPLATE" ]]; then
+    echo "Openbox system template missing or unsafe: $OPENBOX_TEMPLATE" >&2
+    exit 1
+  fi
+  cp -p "$OPENBOX_TEMPLATE" "$OPENBOX_FILE"
+  touch "$CREATED_MARKER"
+fi
 if [[ -f "$OPENBOX_FILE" ]]; then
   python3 - "$OPENBOX_FILE" <<'PY'
 import pathlib, re, sys
