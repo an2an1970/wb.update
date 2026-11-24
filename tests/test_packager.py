@@ -1,4 +1,5 @@
 import io
+import ast
 import json
 import subprocess
 import sys
@@ -7,9 +8,17 @@ import tempfile
 import unittest
 import zipfile
 from argparse import Namespace
-from packager.build import build, verify
+from packager.build import build, verify, INSTALLER
 
 class PackageTests(unittest.TestCase):
+    def test_zip_entrypoint_extracts_every_installer_file(self):
+        source = (Path(__file__).resolve().parents[1] / 'packager' / 'zip_main.py').read_text(encoding='utf-8')
+        tree = ast.parse(source)
+        files = next(ast.literal_eval(node.value) for node in tree.body
+                     if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'FILES'
+                                                            for target in node.targets))
+        self.assertEqual(set(files), set(INSTALLER) - {'__main__.py'})
+
     def test_build_verify_determinism_and_corruption(self):
         with tempfile.TemporaryDirectory() as td:
             p = Path(td)
