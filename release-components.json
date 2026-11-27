@@ -2,8 +2,8 @@
   "version": "0.2.16",
   "components": {
     "wb.srv": {
-      "tag": "4.0-172-gddee084+-pi",
-      "sha": "ddee084c030cb7782ebed04adc6f0357dce07fcd"
+      "tag": "4.0-172-g77e7a36-pi",
+      "sha": "77e7a36970c34fc6cff8b41e01ccef03578106ad"
     },
     "wb.ui": {
       "tag": "0.3-251",
