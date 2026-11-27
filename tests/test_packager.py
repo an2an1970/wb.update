@@ -27,7 +27,8 @@ class PackageTests(unittest.TestCase):
                     z.writestr('index.html' if n=='ui.zip' else 'BOOT-INF/classes/test', b'hi')
             for n in ('app.bin','boot.bin','part.bin'):
                 (p/n).write_bytes(n.encode())
-            opts = dict(version='test',backend=str(p/'backend.jar'),ui=str(p/'ui.zip'),firmware=str(p/'app.bin'),bootloader=str(p/'boot.bin'),partitions=str(p/'part.bin'),backend_sha='a'*40,ui_sha='b'*40,firmware_sha='c'*40)
+            (p/'network-recover.py').write_text('print(1)')
+            opts = dict(network_recover=str(p/'network-recover.py'),version='test',backend=str(p/'backend.jar'),ui=str(p/'ui.zip'),firmware=str(p/'app.bin'),bootloader=str(p/'boot.bin'),partitions=str(p/'part.bin'),backend_sha='a'*40,ui_sha='b'*40,firmware_sha='c'*40)
             a = build(Namespace(**opts, output=str(p/'a.wbpkg')))
             b = build(Namespace(**opts, output=str(p/'b.wbpkg')))
             self.assertEqual(a.read_bytes(), b.read_bytes())

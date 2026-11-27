@@ -92,6 +92,12 @@ def main():
             tag, sha = latest_release(repo, patterns, token)
         print(f"Selected {repo}: {tag} ({sha})")
         download(repo, tag, sha, patterns, out, token)
+        if repo == "wb.srv":
+            import base64
+            source = json.loads(get(API + repo + "/contents/network-recover.py?ref=" + sha, token))
+            if source.get("encoding") != "base64":
+                raise RuntimeError("Missing pinned network-recover.py: " + sha)
+            (out / "network-recover.py").write_bytes(base64.b64decode(source["content"]))
         selected[repo] = {"tag": tag, "sha": sha}
     (out / "selected-releases.json").write_text(json.dumps(selected, indent=2) + "\n")
 

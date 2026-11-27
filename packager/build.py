@@ -12,7 +12,8 @@ NAMES = ('backend/wb.srv.jar', 'ui/dist.zip', 'firmware/v4/app.bin',
          'firmware/v4/bootloader.bin', 'firmware/v4/partitions.bin')
 INSTALLER = ('__main__.py', 'installer/install.py', 'installer/experiment_storage.py',
              'installer/setup-qr-uart.sh', 'installer/enable-wb-screen.sh',
-             'installer/screen_setup.py', 'installer/kiosk-lockdown.sh', 'packager/build.py')
+             'installer/screen_setup.py', 'installer/kiosk-lockdown.sh',
+             'installer/network_support.py', 'packager/build.py')
 
 
 def digest(data):
@@ -41,6 +42,7 @@ def build(args):
     for name in INSTALLER:
         source = repo_root / ('packager/zip_main.py' if name == '__main__.py' else name)
         contents[name] = source.read_bytes()
+    contents["installer/network-recover.py"] = Path(args.network_recover).read_bytes()
     for name, data in contents.items():
         if not data:
             raise ValueError('Empty asset: ' + name)
@@ -88,7 +90,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     sub = p.add_subparsers(dest='cmd', required=True)
     b = sub.add_parser('build')
-    for arg in ('version','backend','ui','firmware','bootloader','partitions','backend-sha','ui-sha','firmware-sha','output'):
+    for arg in ('version','backend','ui','firmware','bootloader','partitions','backend-sha','ui-sha','firmware-sha','network-recover','output'):
         b.add_argument('--' + arg, required=True)
     v = sub.add_parser('verify'); v.add_argument('package')
     a = p.parse_args()

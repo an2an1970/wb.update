@@ -20,6 +20,6 @@ python3 packager/build.py build \
   --version "${VERSION}" \
   --backend downloaded/backend.jar --ui downloaded/ui.zip \
   --firmware downloaded/app.bin --bootloader downloaded/bootloader.bin \
-  --partitions downloaded/partitions.bin \
+  --partitions downloaded/partitions.bin --network-recover downloaded/network-recover.py \
   --backend-sha "${PINS[1]}" --ui-sha "${PINS[3]}" --firmware-sha "${PINS[5]}" \
   --output "wb-${VERSION}.wbpkg"
