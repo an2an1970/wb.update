@@ -16,7 +16,10 @@ import urllib.request
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "packager"))
 from build import verify
-from network_support import install as install_network, check_dependencies, verify_permissions, verify_capabilities
+try:
+    from .network_support import install as install_network, check_dependencies, verify_permissions, verify_capabilities
+except ImportError:
+    from network_support import install as install_network, check_dependencies, verify_permissions, verify_capabilities
 ROOT = Path("/opt/wb.srv")
 EXPECTED = {"backend/wb.srv.jar", "ui/dist.zip", "firmware/v4/app.bin",
             "firmware/v4/bootloader.bin", "firmware/v4/partitions.bin"}
@@ -152,7 +155,6 @@ def install(args):
        (not debug_dropin.is_file() or debug_dropin.read_text() != expected_debug)):
         raise FileExistsError("Unknown debug systemd override: " + str(debug_dropin))
     manifest = verify(args.package)
-    check_dependencies()
     if args.dry_run:
         configure_qr_uart(dry_run=True)
         configure_experiment_storage(root, dry_run=True)
@@ -167,6 +169,7 @@ def install(args):
         raise ValueError("This installer only supports /opt/wb.srv; systemd override uses that path")
     configure_qr_uart(dry_run=True)
     configure_experiment_storage(root, dry_run=True)
+    check_dependencies()
     with zipfile.ZipFile(args.package) as archive:
         recovery_helper = archive.read("installer/network-recover.py")
     kiosk_script = Path(__file__).resolve().with_name("kiosk-lockdown.sh")
