@@ -18,6 +18,14 @@ if [[ -f /etc/locale.gen ]]; then
   locale-gen en_US.UTF-8
   update-locale LANG=en_US.UTF-8
 fi
+# Install SD-provided SSH public keys for the wb login user.
+KEYS="$BOOT/wb-install/authorized_keys"
+if [[ -s "$KEYS" ]]; then
+  id wb >/dev/null 2>&1 || { echo "wb user not created by Raspberry Pi OS firstboot"; exit 1; }
+  install -d -m 0700 -o wb -g wb /home/wb/.ssh
+  install -m 0600 -o wb -g wb "$KEYS" /home/wb/.ssh/authorized_keys
+  systemctl enable --now ssh.service
+fi
 python3 "$PKG" verify
 python3 "$PKG" install --allow-unsigned
 # The package stages its resume service and schedules a reboot.
