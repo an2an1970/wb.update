@@ -172,6 +172,7 @@ def provision():
         original = main_lightdm.read_text()
         updated = re.sub(r"(?m)^(autologin-user\s*=)[^\n]*", r"\g<1>wbui", original)
         updated = re.sub(r"(?m)^(user-session\s*=)[^\n]*", r"\g<1>wb-kiosk", updated)
+        updated = re.sub(r"(?m)^(autologin-session\s*=)[^\n]*", r"\g<1>wb-kiosk", updated)
         if updated != original:
             main_lightdm.write_text(updated)
     # Hardware calibration is device-specific. Import the supplied settings
