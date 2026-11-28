@@ -302,9 +302,10 @@ def install(args):
                 raise RuntimeError("Backend did not become HTTP-ready within 60 seconds")
             run("systemctl", "is-active", "--quiet", "wb-srv.service")
             verify_capabilities()
-            # The kiosk service may have been stopped through Requires=.
-            run("systemctl", "start", "wb-ui.service")
-            run("systemctl", "is-active", "--quiet", "wb-ui.service")
+            # Do not synchronously start wb-ui from the resume oneshot:
+            # graphical.target waits for multi-user.target, which waits for
+            # this oneshot. Waiting for the kiosk here deadlocks the boot.
+            run("systemctl", "enable", "wb-ui.service")
             screen_error = None
             try:
                 screen_ok = enable_screen(Path(__file__).resolve().with_name("enable-wb-screen.sh"), args.screen_idle_confirmed)
@@ -353,8 +354,7 @@ def install(args):
                 except Exception: pass
             try: run("systemctl", "start", "wb-srv.service")
             except Exception: pass
-            try: run("systemctl", "start", "wb-ui.service")
-            except Exception: pass
+            # Never wait for the kiosk from the bootstrap resume job.
             raise
 
 def main():
