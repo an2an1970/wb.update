@@ -226,7 +226,9 @@ def install(args):
         else:
             account = __import__("pwd").getpwnam("wbui")
             os.chown(stage / "wb.srv.jar", account.pw_uid, account.pw_gid)
-        script_changed = stage_script(stage / "wb.srv.jar", stage, script)
+        # Device-provided script.js is authoritative on a first installation.
+        # Release updates retain the existing script handling policy.
+        script_changed = False if fresh and script.is_file() else stage_script(stage / "wb.srv.jar", stage, script)
         if fresh:
             with zipfile.ZipFile(stage / "wb.srv.jar") as archive:
                 libs = [n for n in archive.namelist() if n.startswith("BOOT-INF/lib/") and n.endswith(".jar")]
