@@ -1,0 +1,56 @@
+name: Build corrected WB package
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'installer/**'
+      - 'packager/**'
+      - '.github/workflows/repack-wb.yml'
+permissions:
+  contents: read
+jobs:
+  repack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download latest published WB binary package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p incoming out
+          gh release download --repo "$GITHUB_REPOSITORY" --pattern '*.wbpkg' --dir incoming
+          test "$(find incoming -maxdepth 1 -name '*.wbpkg' | wc -l)" -eq 1
+      - name: Repackage with current installer and verify
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, pathlib, zipfile
+          from packager.build import INSTALLER, verify
+          source = next(pathlib.Path('incoming').glob('*.wbpkg'))
+          old = verify(source)
+          with zipfile.ZipFile(source) as z:
+              contents = {name: z.read(name) for name in z.namelist() if name != 'manifest.json'}
+          for name in INSTALLER:
+              path = 'packager/zip_main.py' if name == '__main__.py' else name
+              contents[name] = pathlib.Path(path).read_bytes()
+          contents['installer/network-recover.py'] = pathlib.Path('installer/network-recover.py').read_bytes()
+          manifest = dict(old)
+          manifest['version'] = str(old['version']) + '-kioskfix-' + __import__('os').environ['GITHUB_SHA'][:8]
+          manifest['files'] = {name: {'sha256': hashlib.sha256(data).hexdigest(), 'size': len(data)}
+                               for name, data in sorted(contents.items())}
+          contents['manifest.json'] = (json.dumps(manifest, sort_keys=True, indent=2, ensure_ascii=False) + '\n').encode()
+          output = pathlib.Path('out') / ('wb-' + manifest['version'] + '.wbpkg')
+          with zipfile.ZipFile(output, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as z:
+              for name, data in sorted(contents.items()):
+                  info = zipfile.ZipInfo(name, (1980, 1, 1, 0, 0, 0))
+                  info.compress_type = zipfile.ZIP_DEFLATED
+                  info.external_attr = 0o644 << 16
+                  z.writestr(info, data)
+          verify(output)
+          print(f'Verified: {output} ({output.stat().st_size} bytes)')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wb-corrected-package
+          path: out/*.wbpkg
+          retention-days: 30
