@@ -89,9 +89,13 @@ def ensure_packages():
     if not shutil.which("pinctrl"):
         command("apt-get", "install", "-y", "raspi-utils")
     if not shutil.which("esptool") and not shutil.which("esptool.py"):
-        command("apt-get", "install", "-y", "esptool")
+        # Raspberry Pi OS Bookworm does not necessarily ship an apt package named esptool.
+        command("apt-get", "install", "-y", "python3-venv")
+        command("python3", "-m", "venv", "/opt/wb-esptool-venv")
+        command("/opt/wb-esptool-venv/bin/pip", "install", "esptool")
+        Path("/usr/local/bin/esptool").symlink_to("/opt/wb-esptool-venv/bin/esptool")
     if not shutil.which("esptool") and shutil.which("esptool.py"):
-        Path("/usr/local/bin/esptool").write_text('#!/bin/sh\nexec /usr/bin/esptool.py "$@"\n')
+        Path("/usr/local/bin/esptool").write_text('#!/bin/sh\\nexec /usr/bin/esptool.py "$@"\\n')
         Path("/usr/local/bin/esptool").chmod(0o755)
     for executable in ("java", "chromium-browser", "pinctrl", "esptool", "nmcli"):
         if not shutil.which(executable):
