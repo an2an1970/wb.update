@@ -175,6 +175,14 @@ def provision():
     write_if_absent(settings_dest, settings_source.read_text(), 0o640)
     os.chown(settings_dest, user.pw_uid, user.pw_gid)
     settings_dest.chmod(0o640)
+    script_source = Path("/boot/firmware/wb-install/script.js")
+    script_dest = ROOT / "script.js"
+    if not script_source.is_file() or script_source.is_symlink():
+        raise RuntimeError("Missing /boot/firmware/wb-install/script.js; "
+                           "provide the device's experiment script before first boot")
+    write_if_absent(script_dest, script_source.read_text(), 0o640)
+    os.chown(script_dest, user.pw_uid, user.pw_gid)
+    script_dest.chmod(0o640)
     os.chown(ROOT, user.pw_uid, user.pw_gid)
     write_if_absent("/etc/systemd/system/wb-srv.service", SERVER_UNIT)
     write_if_absent("/etc/systemd/system/wb-ui.service", UI_UNIT)
