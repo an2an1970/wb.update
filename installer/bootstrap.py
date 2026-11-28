@@ -161,6 +161,20 @@ def provision():
         updated = re.sub(r"(?m)^autologin-user=[^\\n]*", "autologin-user=wbui", original)
         if updated != original:
             main_lightdm.write_text(updated)
+    # Hardware calibration is device-specific. Import the supplied settings
+    # from the SD card on first install; never replace it during updates.
+    settings_source = Path("/boot/firmware/wb-install/settings.json")
+    settings_dest = ROOT / "settings.json"
+    if not settings_source.is_file() or settings_source.is_symlink():
+        raise RuntimeError("Missing /boot/firmware/wb-install/settings.json; "
+                           "provide the device's hardware settings before first boot")
+    import json
+    settings = json.loads(settings_source.read_text())
+    if not isinstance(settings, dict) or not isinstance(settings.get("hardware"), dict):
+        raise ValueError("Invalid WB settings.json: missing hardware object")
+    write_if_absent(settings_dest, settings_source.read_text(), 0o640)
+    os.chown(settings_dest, user.pw_uid, user.pw_gid)
+    settings_dest.chmod(0o640)
     os.chown(ROOT, user.pw_uid, user.pw_gid)
     write_if_absent("/etc/systemd/system/wb-srv.service", SERVER_UNIT)
     write_if_absent("/etc/systemd/system/wb-ui.service", UI_UNIT)
