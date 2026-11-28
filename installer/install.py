@@ -139,19 +139,35 @@ def install(args):
         from experiment_storage import configure as configure_experiment_storage
         from screen_setup import enable_screen
     root = Path(args.root)
-    fresh = not root.exists()
-    if fresh and args.dry_run:
+    fresh = not (root / "wb.srv.jar").is_file()
+    first_bootstrap = fresh and not root.exists()
+    if first_bootstrap and args.dry_run:
         bootstrap_preflight()
         manifest = verify(args.package)
         print(json.dumps({"verified": True, "version": manifest["version"], "mode": "fresh-install", "dependencies": "will install", "firmware": "will flash"}, indent=2))
         return
-    if fresh:
+    if first_bootstrap:
         if not args.allow_unsigned:
             raise ValueError("Unsigned package: --allow-unsigned required")
         if root != ROOT:
             raise ValueError("First install supports /opt/wb.srv only")
         verify(args.package)
         bootstrap_provision()
+        # UART pin mux and LightDM autologin require a reboot on a clean Pi.
+        # Resume the verified, local package automatically after that reboot.
+        resume_dir = Path("/var/lib/wb-bootstrap")
+        resume_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        resume_dir.chmod(0o700)
+        resume_pkg = resume_dir / "package.wbpkg"
+        shutil.copyfile(args.package, resume_pkg)
+        resume_pkg.chmod(0o600)
+        resume_unit = Path("/etc/systemd/system/wb-bootstrap-resume.service")
+        resume_unit.write_text("[Unit]\nDescription=Complete WB first installation after UART reboot\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=oneshot\nExecStart=/usr/bin/python3 /var/lib/wb-bootstrap/package.wbpkg install --allow-unsigned\nTimeoutStartSec=infinity\n\n[Install]\nWantedBy=multi-user.target\n")
+        run("systemctl", "daemon-reload")
+        run("systemctl", "enable", "wb-bootstrap-resume.service")
+        run("shutdown", "-r", "+1", "WB first-install bootstrap completed")
+        print("WB bootstrap provisioned; reboot scheduled; package installation resumes automatically.")
+        return
     if root.is_symlink() or not root.is_dir():
         raise ValueError("Invalid deployment root")
     jar, ui, script = root / "wb.srv.jar", root / "static", root / "script.js"
@@ -311,6 +327,12 @@ def install(args):
                               "qr_uart": "configured", "kiosk_lockdown": kiosk_status, "screen": ("verified" if screen_ok == "frame" else
                                          "ready (JPEG stream unverified)" if screen_ok == "ready" else
                                          "failed: " + screen_error if screen_error else "deferred until idle"), "reboot": "scheduled in 1 minute"}, indent=2))
+            # A completed first install must not run again after the final reboot.
+            if fresh and Path("/etc/systemd/system/wb-bootstrap-resume.service").exists():
+                run("systemctl", "disable", "wb-bootstrap-resume.service")
+                Path("/etc/systemd/system/wb-bootstrap-resume.service").unlink()
+                Path("/var/lib/wb-bootstrap/package.wbpkg").unlink(missing_ok=True)
+                run("systemctl", "daemon-reload")
             # Delay reboot so SSH/bootstrap can receive the success response.
             run("shutdown", "-r", "+1", "WB update completed")
         except BaseException:
