@@ -17,6 +17,10 @@ import urllib.request
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "packager"))
 from build import verify
 try:
+    from .bootstrap import provision as bootstrap_provision, preflight as bootstrap_preflight
+except ImportError:
+    from bootstrap import provision as bootstrap_provision, preflight as bootstrap_preflight
+try:
     from .network_support import install as install_network, check_dependencies, verify_permissions, verify_capabilities
 except ImportError:
     from network_support import install as install_network, check_dependencies, verify_permissions, verify_capabilities
@@ -91,7 +95,7 @@ def flash_firmware(package, stage, root):
     boot = root / "boot.sh"
     reset = root / "reset.sh"
     boot_app = root / "boot_app0.bin"
-    for file in (boot, reset, boot_app):
+    for file in (boot, reset):
         if not file.is_file() or file.is_symlink():
             raise FileNotFoundError(f"Required firmware support file: {file}")
     if not shutil.which("esptool") or not shutil.which("pinctrl"):
@@ -112,7 +116,7 @@ def flash_firmware(package, stage, root):
             "--flash-size", "8MB",
             "0x0", str(firmware_dir / "bootloader.bin"),
             "0x8000", str(firmware_dir / "partitions.bin"),
-            "0xe000", str(boot_app),
+            *(["0xe000", str(boot_app)] if boot_app.is_file() and not boot_app.is_symlink() else []),
             "0x10000", str(firmware_dir / "app.bin"))
     finally:
         run("bash", str(reset))
@@ -135,13 +139,29 @@ def install(args):
         from experiment_storage import configure as configure_experiment_storage
         from screen_setup import enable_screen
     root = Path(args.root)
+    fresh = not root.exists()
+    if fresh and args.dry_run:
+        bootstrap_preflight()
+        manifest = verify(args.package)
+        print(json.dumps({"verified": True, "version": manifest["version"], "mode": "fresh-install", "dependencies": "will install", "firmware": "will flash"}, indent=2))
+        return
+    if fresh:
+        if not args.allow_unsigned:
+            raise ValueError("Unsigned package: --allow-unsigned required")
+        if root != ROOT:
+            raise ValueError("First install supports /opt/wb.srv only")
+        verify(args.package)
+        bootstrap_provision()
     if root.is_symlink() or not root.is_dir():
         raise ValueError("Invalid deployment root")
     jar, ui, script = root / "wb.srv.jar", root / "static", root / "script.js"
-    if jar.is_symlink() or ui.is_symlink() or not jar.is_file() or not ui.is_dir():
+    if jar.is_symlink() or ui.is_symlink() or (not fresh and (not jar.is_file() or not ui.is_dir())):
         raise ValueError("Expected regular JAR and static directory")
     if not (root / "lib").is_dir():
-        raise ValueError("Missing existing lib directory")
+        if fresh:
+            (root / "lib").mkdir()
+        else:
+            raise ValueError("Missing existing lib directory")
     dropin_dir = Path("/etc/systemd/system/wb-srv.service.d")
     dropin = dropin_dir / "90-wb-update.conf"
     debug_dropin = dropin_dir / "99-wb-debug.conf"
@@ -183,17 +203,34 @@ def install(args):
             if "BOOT-INF/classes/net/an2an/wb/server/Application.class" not in new_jar.namelist():
                 raise ValueError("Expected executable Spring Boot JAR with Application.class")
         # Preserve permissions and ownership of existing deployment files.
-        shutil.copymode(jar, stage / "wb.srv.jar")
-        shutil.copystat(jar, stage / "wb.srv.jar")
-        os.chown(stage / "wb.srv.jar", jar.stat().st_uid, jar.stat().st_gid)
+        if jar.exists():
+            shutil.copymode(jar, stage / "wb.srv.jar")
+            shutil.copystat(jar, stage / "wb.srv.jar")
+            os.chown(stage / "wb.srv.jar", jar.stat().st_uid, jar.stat().st_gid)
+        else:
+            account = __import__("pwd").getpwnam("wbui")
+            os.chown(stage / "wb.srv.jar", account.pw_uid, account.pw_gid)
         script_changed = stage_script(stage / "wb.srv.jar", stage, script)
-        shutil.copystat(ui, stage / "static")
+        if fresh:
+            with zipfile.ZipFile(stage / "wb.srv.jar") as archive:
+                libs = [n for n in archive.namelist() if n.startswith("BOOT-INF/lib/") and n.endswith(".jar")]
+                if not libs:
+                    raise RuntimeError("Server JAR contains no BOOT-INF/lib dependencies")
+                for name in libs:
+                    destination = root / "lib" / Path(name).name
+                    destination.write_bytes(archive.read(name))
+                    os.chown(destination, account.pw_uid, account.pw_gid)
+        if ui.exists():
+            shutil.copystat(ui, stage / "static")
         for base, dirs, files in os.walk(stage / "static"):
             for name in dirs + files:
                 p = Path(base) / name
                 if not p.is_symlink():
-                    os.chown(p, ui.stat().st_uid, ui.stat().st_gid)
-        os.chown(stage / "static", ui.stat().st_uid, ui.stat().st_gid)
+                    os.chown(p, account.pw_uid if fresh else ui.stat().st_uid,
+                             account.pw_gid if fresh else ui.stat().st_gid)
+        account = __import__("pwd").getpwnam("wbui")
+        os.chown(stage / "static", account.pw_uid if fresh else ui.stat().st_uid,
+                 account.pw_gid if fresh else ui.stat().st_gid)
         stamp = time.strftime("%Y%m%d-%H%M%S")
         backup = root / "backup" / ("wb-update-" + stamp)
         if backup.exists():
@@ -208,7 +245,8 @@ def install(args):
             override_text = expected_override
             install_network(recovery_helper)
             verify_permissions()
-            run("systemctl", "stop", "wb-srv.service")
+            if not fresh:
+                run("systemctl", "stop", "wb-srv.service")
             flash_firmware(args.package, stage, root)
             configure_qr_uart()
             configure_experiment_storage(root)
