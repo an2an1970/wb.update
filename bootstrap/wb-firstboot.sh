@@ -7,6 +7,17 @@ CMD="$BOOT/cmdline.txt"
 PKG="$BOOT/wb-install/package.wbpkg"
 UART="$BOOT/wb-install/setup-qr-uart.sh"
 [[ -f "$PKG" && -f "$UART" ]] || { echo "Missing WB package or UART setup"; exit 1; }
+# Configure appliance locale and keyboard without interactive Raspberry Pi wizard.
+hostnamectl set-hostname wb
+timedatectl set-timezone Europe/Jerusalem
+if [[ -f /etc/default/keyboard ]]; then
+  sed -i -E 's/^XKBLAYOUT=.*/XKBLAYOUT="us"/; s/^XKBVARIANT=.*/XKBVARIANT=""/' /etc/default/keyboard
+fi
+if [[ -f /etc/locale.gen ]]; then
+  sed -i -E 's/^# ?(en_US.UTF-8 UTF-8)/\\1/' /etc/locale.gen
+  locale-gen en_US.UTF-8
+  update-locale LANG=en_US.UTF-8
+fi
 python3 "$PKG" verify
 python3 "$PKG" install --allow-unsigned
 # The package stages its resume service and schedules a reboot.
