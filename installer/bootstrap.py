@@ -74,7 +74,7 @@ def preflight():
     data = Path("/etc/os-release").read_text()
     if "bookworm" not in data.lower() or "debian" not in data.lower():
         raise RuntimeError("First install currently supports Raspberry Pi OS Bookworm only")
-    if not Path("/proc/device-tree/model").exists() or "Raspberry Pi" not in Path("/proc/device-tree/model").read_text(errors="replace"):
+    if not Path("/proc/device-tree/model").exists() or not Path("/proc/device-tree/model").read_text(errors="replace").startswith("Raspberry Pi 5 "):
         raise RuntimeError("Raspberry Pi hardware required")
     if not Path("/etc/lightdm").exists():
         raise RuntimeError("Raspberry Pi OS with Desktop (lightdm) required")
@@ -85,7 +85,7 @@ def ensure_packages():
     command("apt-get", "update")
     command("apt-get", "install", "-y", "openjdk-17-jre-headless", "chromium-browser",
             "lightdm", "curl", "network-manager", "policykit-1", "python3-dbus",
-            "sudo", "python3-serial", "python3-pip")
+            "sudo", "python3-serial", "python3-pip", "device-tree-compiler")
     if not shutil.which("pinctrl"):
         command("apt-get", "install", "-y", "raspi-utils")
     if not shutil.which("esptool") and not shutil.which("esptool.py"):
@@ -136,6 +136,9 @@ def provision():
     write_if_absent(ROOT / "reset.sh", RESET, 0o755)
     write_if_absent("/etc/lightdm/lightdm.conf.d/12-wb-autologin.conf",
                     "[Seat:*]\nautologin-user=wbui\nautologin-user-timeout=0\nuser-session=LXDE-pi\n")
+    if shutil.which("raspi-config"):
+        command("raspi-config", "nonint", "do_serial_cons", "1")
+        command("raspi-config", "nonint", "do_serial_hw", "0")
     command("systemctl", "set-default", "graphical.target")
     command("systemctl", "daemon-reload")
     command("systemctl", "enable", "wb-srv.service", "wb-ui.service")
