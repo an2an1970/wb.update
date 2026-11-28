@@ -78,7 +78,7 @@ def preflight():
         raise RuntimeError("Raspberry Pi hardware required")
     if not Path("/etc/lightdm").exists():
         raise RuntimeError("Raspberry Pi OS with Desktop (lightdm) required")
-    if ROOT.exists() and (ROOT.is_symlink() or any(ROOT.iterdir())):
+    if ROOT.is_symlink() or (ROOT.exists() and any(ROOT.iterdir())):
         raise RuntimeError("Refusing bootstrap over nonempty deployment; use update mode")
 
 def ensure_packages():
@@ -88,9 +88,11 @@ def ensure_packages():
             "sudo", "python3-serial", "python3-pip")
     if not shutil.which("pinctrl"):
         command("apt-get", "install", "-y", "raspi-utils")
-    if not shutil.which("esptool"):
-        # Debian bookworm's esptool package provides the CLI without pip's externally-managed restriction.
+    if not shutil.which("esptool") and not shutil.which("esptool.py"):
         command("apt-get", "install", "-y", "esptool")
+    if not shutil.which("esptool") and shutil.which("esptool.py"):
+        Path("/usr/local/bin/esptool").write_text('#!/bin/sh\nexec /usr/bin/esptool.py "$@"\n')
+        Path("/usr/local/bin/esptool").chmod(0o755)
     for executable in ("java", "chromium-browser", "pinctrl", "esptool", "nmcli"):
         if not shutil.which(executable):
             raise RuntimeError("Missing bootstrap executable: " + executable)

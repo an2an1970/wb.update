@@ -222,6 +222,7 @@ def install(args):
                     os.chown(destination, account.pw_uid, account.pw_gid)
         if ui.exists():
             shutil.copystat(ui, stage / "static")
+        account = __import__("pwd").getpwnam("wbui")
         for base, dirs, files in os.walk(stage / "static"):
             for name in dirs + files:
                 p = Path(base) / name
