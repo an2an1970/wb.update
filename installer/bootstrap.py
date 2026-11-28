@@ -136,8 +136,23 @@ def provision():
     logs = Path("/var/log/wb.srv")
     logs.mkdir(parents=True, exist_ok=True)
     os.chown(logs, user.pw_uid, user.pw_gid)
-    write_if_absent(ROOT / "application-local.properties",
-                    "spring.profiles.active=console,hybrid,uart,pi,rpc,bluetooth,pi4j-hw-control\n")
+    # Site-specific REST credentials must be supplied, never hardcoded in the package.
+    site_config = Path("/boot/firmware/wb-install/application-local.properties")
+    config = ROOT / "application-local.properties"
+    if site_config.is_file() and not site_config.is_symlink():
+        write_if_absent(config, site_config.read_text(), 0o640)
+    else:
+        write_if_absent(config,
+                        "spring.profiles.active=console,hybrid,uart,pi,rpc,bluetooth,pi4j-hw-control\n")
+    os.chown(config, user.pw_uid, user.pw_gid)
+    config.chmod(0o640)
+    settings = dict(line.split("=", 1) for line in config.read_text().splitlines()
+                    if "=" in line and not line.lstrip().startswith("#"))
+    missing = [key for key in ("rest.server", "rest.user", "rest.passwd")
+               if not settings.get(key, "").strip()]
+    if missing:
+        raise RuntimeError("Missing required WB settings: " + ", ".join(missing) +
+                           "; supply /boot/firmware/wb-install/application-local.properties")
     # The main LightDM configuration may override the kiosk drop-in.
     main_lightdm = Path("/etc/lightdm/lightdm.conf")
     if main_lightdm.is_file():
