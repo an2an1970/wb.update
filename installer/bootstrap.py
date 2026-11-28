@@ -129,6 +129,11 @@ def provision():
         command(*(args + ["wbui"]))
     ROOT.mkdir(parents=True, exist_ok=True)
     user = pwd.getpwnam("wbui")
+    logs = Path("/var/log/wb.srv")
+    logs.mkdir(parents=True, exist_ok=True)
+    os.chown(logs, user.pw_uid, user.pw_gid)
+    write_if_absent(ROOT / "application-local.properties",
+                    "spring.profiles.active=console,hybrid,uart,pi,rpc,bluetooth,pi4j-hw-control\n")
     os.chown(ROOT, user.pw_uid, user.pw_gid)
     write_if_absent("/etc/systemd/system/wb-srv.service", SERVER_UNIT)
     write_if_absent("/etc/systemd/system/wb-ui.service", UI_UNIT)
