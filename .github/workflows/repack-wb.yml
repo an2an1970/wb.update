@@ -2,11 +2,8 @@ name: Build corrected WB package
 on:
   workflow_dispatch:
   push:
-    branches: [main]
-    paths:
-      - 'installer/**'
-      - 'packager/**'
-      - '.github/workflows/repack-wb.yml'
+    tags:
+      - 'v*'
 permissions:
   contents: read
 jobs:
@@ -35,7 +32,7 @@ jobs:
               contents[name] = pathlib.Path(path).read_bytes()
           contents['installer/network-recover.py'] = pathlib.Path('installer/network-recover.py').read_bytes()
           manifest = dict(old)
-          manifest['version'] = str(old['version']) + '-kioskfix-' + __import__('os').environ['GITHUB_SHA'][:8]
+          manifest['version'] = __import__('os').environ['GITHUB_REF_NAME'].removeprefix('v') if __import__('os').environ['GITHUB_REF_TYPE'] == 'tag' else str(old['version']) + '-kioskfix-' + __import__('os').environ['GITHUB_SHA'][:8]
           manifest['files'] = {name: {'sha256': hashlib.sha256(data).hexdigest(), 'size': len(data)}
                                for name, data in sorted(contents.items())}
           contents['manifest.json'] = (json.dumps(manifest, sort_keys=True, indent=2, ensure_ascii=False) + '\n').encode()
