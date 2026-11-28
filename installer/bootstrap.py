@@ -84,7 +84,7 @@ def preflight():
 def ensure_packages():
     command("apt-get", "update")
     command("apt-get", "install", "-y", "openjdk-17-jre-headless", "chromium-browser",
-            "lightdm", "curl", "network-manager", "policykit-1", "python3-dbus",
+            "lightdm", "openbox", "curl", "network-manager", "policykit-1", "python3-dbus",
             "sudo", "python3-serial", "python3-pip", "device-tree-compiler")
     if not shutil.which("pinctrl"):
         command("apt-get", "install", "-y", "raspi-utils")
@@ -153,12 +153,25 @@ def provision():
     if missing:
         raise RuntimeError("Missing required WB settings: " + ", ".join(missing) +
                            "; supply /boot/firmware/wb-install/application-local.properties")
+    # Fixed appliance hostname for this deployment.
+    command("hostnamectl", "set-hostname", "wb22")
+    hosts = Path("/etc/hosts")
+    hosts_text = hosts.read_text()
+    import re
+    hosts_lines = hosts_text.splitlines(keepends=True)
+    for i, line in enumerate(hosts_lines):
+        if re.match(r"^127\.0\.1\.1\s", line):
+            hosts_lines[i] = "127.0.1.1\twb22\n"
+            break
+    else:
+        hosts_lines.append("127.0.1.1\twb22\n")
+    hosts.write_text("".join(hosts_lines))
     # The main LightDM configuration may override the kiosk drop-in.
     main_lightdm = Path("/etc/lightdm/lightdm.conf")
     if main_lightdm.is_file():
-        import re
         original = main_lightdm.read_text()
-        updated = re.sub(r"(?m)^autologin-user=[^\\n]*", "autologin-user=wbui", original)
+        updated = re.sub(r"(?m)^(autologin-user\s*=)[^\n]*", r"\g<1>wbui", original)
+        updated = re.sub(r"(?m)^(user-session\s*=)[^\n]*", r"\g<1>wb-kiosk", updated)
         if updated != original:
             main_lightdm.write_text(updated)
     # Hardware calibration is device-specific. Import the supplied settings
@@ -188,8 +201,10 @@ def provision():
     write_if_absent("/etc/systemd/system/wb-ui.service", UI_UNIT)
     write_if_absent(ROOT / "boot.sh", BOOT, 0o755)
     write_if_absent(ROOT / "reset.sh", RESET, 0o755)
+    write_if_absent("/usr/share/xsessions/wb-kiosk.desktop",
+                    "[Desktop Entry]\nName=WB Kiosk\nComment=WB fullscreen interface\nExec=/usr/bin/openbox-session\nType=Application\n")
     write_if_absent("/etc/lightdm/lightdm.conf.d/12-wb-autologin.conf",
-                    "[Seat:*]\nautologin-user=wbui\nautologin-user-timeout=0\nuser-session=LXDE-pi\n")
+                    "[Seat:*]\nautologin-user=wbui\nautologin-user-timeout=0\nuser-session=wb-kiosk\n")
     if shutil.which("raspi-config"):
         command("raspi-config", "nonint", "do_serial_cons", "1")
         command("raspi-config", "nonint", "do_serial_hw", "0")
