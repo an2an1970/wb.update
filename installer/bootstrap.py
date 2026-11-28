@@ -26,7 +26,7 @@ WantedBy=multi-user.target
 """
 UI_UNIT = """[Unit]
 Description=WB UI Browser
-After=wb-srv.service graphical.target
+After=wb-srv.service lightdm.service
 Requires=wb-srv.service
 PartOf=wb-srv.service
 
@@ -138,6 +138,14 @@ def provision():
     os.chown(logs, user.pw_uid, user.pw_gid)
     write_if_absent(ROOT / "application-local.properties",
                     "spring.profiles.active=console,hybrid,uart,pi,rpc,bluetooth,pi4j-hw-control\n")
+    # The main LightDM configuration may override the kiosk drop-in.
+    main_lightdm = Path("/etc/lightdm/lightdm.conf")
+    if main_lightdm.is_file():
+        import re
+        original = main_lightdm.read_text()
+        updated = re.sub(r"(?m)^autologin-user=[^\\n]*", "autologin-user=wbui", original)
+        if updated != original:
+            main_lightdm.write_text(updated)
     os.chown(ROOT, user.pw_uid, user.pw_gid)
     write_if_absent("/etc/systemd/system/wb-srv.service", SERVER_UNIT)
     write_if_absent("/etc/systemd/system/wb-ui.service", UI_UNIT)
